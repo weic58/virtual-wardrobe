@@ -10,6 +10,7 @@
     <!-- 網頁圖示 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧥</text></svg>">
     
+    <!-- 網頁標題 -->
     <title>虛擬試穿衣櫥</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,16 +18,16 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- 引入 Firebase -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         window.Firebase = { 
             initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
             signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile,
-            getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove 
+            getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, increment 
         };
     </script>
 
@@ -55,6 +56,7 @@
             appId: "1:96273892644:web:3008f7f604c57669f35fb1"
         };
 
+        // 介面改回中文
         const CLOTH_CATEGORIES = {
             upper: { label: '上身', types: ['長袖', '短袖', '背心', '外套', '其他'] },
             lower: { label: '下身', types: ['長褲', '短褲', '裙子', '其他'] },
@@ -63,14 +65,13 @@
             hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '其他'] }
         };
 
-        // 預設品牌列表
         const DEFAULT_BRANDS = ['Uniqlo', 'GU', 'MUJI', '50%', 'Nike', 'Adidas', 'Zara', 'H&M'];
 
         // ==========================================
 
         const { useState, useRef, useEffect } = React;
 
-        // --- 圖片壓縮工具 ---
+        // --- Utils ---
         const compressImage = (base64Str, maxWidth = 800, quality = 0.6) => {
             return new Promise((resolve) => {
                 const img = new Image();
@@ -79,12 +80,8 @@
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    if (width > maxWidth) {
-                        height *= maxWidth / width;
-                        width = maxWidth;
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
+                    if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
+                    canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     resolve(canvas.toDataURL('image/jpeg', quality));
@@ -92,10 +89,11 @@
             });
         };
 
-        // --- 圖示元件 ---
+        // --- Icons ---
         const Icons = {
             Shirt: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>,
             Grid: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>,
+            List: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
             User: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
             Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 5h4"/><path d="M3 9h4"/></svg>,
             Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
@@ -120,11 +118,12 @@
             Tag: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
             Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
             Shoes: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h20"/><path d="M5 20v-5.26a3 3 0 0 1 .88-2.12l5.12-5.12a2 2 0 0 1 2.83 0l5.12 5.12a3 3 0 0 1 .88 2.12V20"/><path d="M13 14h.01"/></svg>,
-            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>,
+            Coin: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
         };
 
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full') => {
-            if (!apiKey) throw new Error("API Key 未設定，請至右上角設定中填寫");
+            if (!apiKey) throw new Error("請在設定中輸入 API Key");
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
             const imageParts = [];
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
@@ -134,7 +133,7 @@
             if (selectedItems.upper) { promptText += ` 第 ${clothIndex} 張圖片是'上身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.lower) { promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.accessory) { promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); clothIndex++; }
-            if (selectedItems.shoes) { promptText += ` 第 ${clothIndex} 張圖片是'鞋子'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.shoes.src.split(',')[1] } }); clothIndex++; } // 鞋子 Prompt
+            if (selectedItems.shoes) { promptText += ` 第 ${clothIndex} 張圖片是'鞋子'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.shoes.src.split(',')[1] } }); clothIndex++; }
             
             promptText += " 請生成一張高品質、寫實的照片。";
             
@@ -168,7 +167,7 @@
                 
                 if (data.error) throw new Error(`API Error: ${data.error.message}`);
                 const candidate = data.candidates?.[0];
-                if (candidate?.finishReason === 'SAFETY') throw new Error("⚠️ 圖片被安全系統攔截：請更換照片。");
+                if (candidate?.finishReason === 'SAFETY') throw new Error("⚠️ 圖片被安全系統攔截：請更換照片 (避免過多皮膚暴露或敏感姿勢)。");
                 if (candidate?.content?.parts) {
                     const imagePart = candidate.content.parts.find(p => p.inlineData);
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
@@ -180,10 +179,12 @@
             }
         };
 
-        // --- 設定彈出視窗 ---
-        const SettingsModal = ({ onClose, user, isFirebaseReady, apiKey, onSaveApiKey }) => {
+        // --- Settings Modal (with Quota & Redeem) ---
+        const SettingsModal = ({ onClose, user, isFirebaseReady, apiKey, onSaveApiKey, genStats, onRedeem }) => {
             const [inputKey, setInputKey] = useState(apiKey || '');
+            const [redeemCode, setRedeemCode] = useState('');
             const [msg, setMsg] = useState('');
+            const [redeemMsg, setRedeemMsg] = useState('');
 
             const handleLogout = async () => {
                 if (confirm("確定要登出嗎？")) {
@@ -196,6 +197,18 @@
                 onSaveApiKey(inputKey);
                 setMsg('✅ API Key 已更新');
                 setTimeout(() => setMsg(''), 2000);
+            };
+
+            const handleRedeemClick = async () => {
+                if (!redeemCode.trim()) return;
+                const success = await onRedeem(redeemCode);
+                if (success) {
+                    setRedeemMsg('✅ 成功增加 5 次額度！');
+                    setRedeemCode('');
+                } else {
+                    setRedeemMsg('❌ 代碼無效');
+                }
+                setTimeout(() => setRedeemMsg(''), 3000);
             };
 
             const getAvatarText = () => {
@@ -220,21 +233,37 @@
                                             {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : getAvatarText()}
                                         </div>
                                         <div className="overflow-hidden">
-                                            <p className="font-bold text-gray-800 truncate">{user.displayName || (user.isAnonymous ? "匿名訪客" : "使用者")}</p>
+                                            <p className="font-bold text-gray-800 truncate">{user.displayName || (user.isAnonymous ? "訪客" : "使用者")}</p>
                                             <p className="text-xs text-gray-500 truncate">{user.email || "未綁定 Email"}</p>
                                         </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 font-mono break-all">ID: {user.uid}</div>
+                                    <div className="text-xs text-gray-500 flex justify-between items-center mt-2 bg-white p-2 rounded border">
+                                        <span>額度使用:</span>
+                                        <span className={`font-bold ${genStats.count >= genStats.limit ? 'text-red-500' : 'text-green-600'}`}>
+                                            {genStats.count} / {genStats.limit}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-500 mb-1">Google Gemini API Key</label>
+                                <label className="block text-sm font-medium text-gray-500 mb-1">輸入代碼加值</label>
                                 <div className="flex gap-2">
-                                    <input type="password" value={inputKey} onChange={(e) => setInputKey(e.target.value)} placeholder="貼上 API Key" className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-purple-500 outline-none text-sm font-mono" />
+                                    <input type="text" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} placeholder="輸入代碼" className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm" />
+                                    <button onClick={handleRedeemClick} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700">兌換</button>
+                                </div>
+                                {redeemMsg && <p className="text-xs mt-1 text-center font-bold">{redeemMsg}</p>}
+                                <p className="text-[10px] text-gray-400 mt-1">輸入代碼可增加 5 次生成額度。</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-500 mb-1">Google Gemini API 金鑰</label>
+                                <div className="flex gap-2">
+                                    <input type="password" value={inputKey} onChange={(e) => setInputKey(e.target.value)} placeholder="貼上 API Key" className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-mono" />
                                     <button onClick={handleSaveKey} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700">儲存</button>
                                 </div>
                                 {msg && <p className="text-xs mt-1 text-green-600">{msg}</p>}
+                                <p className="text-[10px] text-gray-400 mt-1">此 Key 將儲存在您的 Firebase 雲端資料庫中。</p>
                             </div>
 
                             <button onClick={handleLogout} className="w-full py-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 flex items-center justify-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.LogOut /></div> 登出帳號</button>
@@ -244,20 +273,17 @@
             );
         };
 
-        // --- 上傳/編輯 彈出視窗 ---
         const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData, userTags, onAddTag, onDeleteTag, userBrands, onAddBrand }) => {
             if (!isOpen) return null;
-
             const [name, setName] = useState('');
             const [category, setCategory] = useState('upper');
             const [subCategory, setSubCategory] = useState('長袖');
             const [brand, setBrand] = useState('Uniqlo');
             const [customBrand, setCustomBrand] = useState('');
-            const [selectedTags, setSelectedTags] = useState([]); // 當前物品選中的標籤
+            const [selectedTags, setSelectedTags] = useState([]); 
             const [newTagInput, setNewTagInput] = useState('');
             const [previewUrl, setPreviewUrl] = useState('');
 
-            // 合併預設品牌與使用者自訂品牌
             const availableBrands = [...DEFAULT_BRANDS, ...(userBrands || []), '自訂'];
 
             useEffect(() => {
@@ -266,13 +292,8 @@
                     setCategory(initialData.category || 'upper');
                     setSubCategory(initialData.subCategory || (CLOTH_CATEGORIES[initialData.category || 'upper']?.types[0] || '其他'));
                     const b = initialData.brand || 'Uniqlo';
-                    
-                    if (availableBrands.includes(b)) {
-                        setBrand(b);
-                    } else {
-                        setBrand('自訂');
-                        setCustomBrand(b);
-                    }
+                    if (availableBrands.includes(b) && b !== '自訂') { setBrand(b); } 
+                    else { setBrand('自訂'); setCustomBrand(b); }
                     setSelectedTags(initialData.tags || []);
                     setPreviewUrl(initialData.src);
                 } else if (file) {
@@ -285,44 +306,28 @@
             }, [file, isEdit, initialData, userBrands]);
 
             useEffect(() => {
-                if (!isEdit) {
-                     setSubCategory(CLOTH_CATEGORIES[category]?.types[0] || '其他');
-                }
+                if (!isEdit) { setSubCategory(CLOTH_CATEGORIES[category]?.types[0] || '其他'); }
             }, [category]);
 
             const handleConfirm = () => {
                 let finalBrand = brand;
                 if (brand === '自訂') {
                     finalBrand = customBrand.trim();
-                    if (finalBrand && onAddBrand) {
-                         onAddBrand(finalBrand); // 儲存自訂品牌到清單
-                    }
+                    if (finalBrand && onAddBrand) onAddBrand(finalBrand);
                 }
-                
-                onConfirm({ 
-                    name, 
-                    category, 
-                    subCategory, 
-                    brand: finalBrand,
-                    tags: selectedTags
-                });
+                onConfirm({ name, category, subCategory, brand: finalBrand, tags: selectedTags });
                 onClose();
             };
 
             const toggleTag = (tag) => {
-                if (selectedTags.includes(tag)) {
-                    setSelectedTags(selectedTags.filter(t => t !== tag));
-                } else {
-                    setSelectedTags([...selectedTags, tag]);
-                }
+                if (selectedTags.includes(tag)) setSelectedTags(selectedTags.filter(t => t !== tag));
+                else setSelectedTags([...selectedTags, tag]);
             };
 
             const handleAddNewTag = () => {
                 if (newTagInput.trim()) {
                     onAddTag(newTagInput.trim());
-                    if (!selectedTags.includes(newTagInput.trim())) {
-                         setSelectedTags([...selectedTags, newTagInput.trim()]);
-                    }
+                    if (!selectedTags.includes(newTagInput.trim())) setSelectedTags([...selectedTags, newTagInput.trim()]);
                     setNewTagInput('');
                 }
             };
@@ -330,134 +335,50 @@
             return (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-lg">{isEdit ? '編輯單品' : '新增單品'}</h3>
-                            <button onClick={onClose}><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
-                        </div>
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold text-lg">{isEdit ? '編輯單品' : '新增單品'}</h3><button onClick={onClose}><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button></div>
                         <div className="p-4 overflow-y-auto flex-1">
-                            <div className="flex justify-center mb-4 bg-gray-100 rounded-lg p-2">
-                                {previewUrl && <img src={previewUrl} className="h-40 object-contain rounded-md" />}
-                            </div>
-                            
+                            <div className="flex justify-center mb-4 bg-gray-100 rounded-lg p-2">{previewUrl && <img src={previewUrl} className="h-40 object-contain rounded-md" />}</div>
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">名稱</label>
-                                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" />
-                                </div>
-
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">名稱</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" /></div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">分類</label>
-                                        <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
-                                            {Object.entries(CLOTH_CATEGORIES).map(([key, val]) => (
-                                                <option key={key} value={key}>{val.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">種類</label>
-                                        <select value={subCategory} onChange={e => setSubCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
-                                            {CLOTH_CATEGORIES[category]?.types.map(t => (
-                                                <option key={t} value={t}>{t}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">分類</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white">{Object.entries(CLOTH_CATEGORIES).map(([key, val]) => (<option key={key} value={key}>{val.label}</option>))}</select></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">種類</label><select value={subCategory} onChange={e => setSubCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white">{CLOTH_CATEGORIES[category]?.types.map(t => (<option key={t} value={t}>{t}</option>))}</select></div>
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">品牌</label>
-                                    <div className="flex gap-2">
-                                        <select value={brand} onChange={e => setBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
-                                            {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                                        </select>
-                                        {brand === '自訂' && (
-                                            <input type="text" placeholder="輸入品牌" value={customBrand} onChange={e => setCustomBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" />
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">標籤 (點擊選取)</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {userTags.map(tag => (
-                                            <div key={tag} className={`px-2 py-1 rounded-md text-xs cursor-pointer flex items-center gap-1 border ${selectedTags.includes(tag) ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200'}`} onClick={() => toggleTag(tag)}>
-                                                <span>{tag}</span>
-                                                <span onClick={(e) => { e.stopPropagation(); onDeleteTag(tag); }} className="text-gray-400 hover:text-red-500 px-1 font-bold">×</span>
-                                            </div>
-                                        ))}
-                                        {userTags.length === 0 && <span className="text-xs text-gray-400">尚無儲存標籤</span>}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <input type="text" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} placeholder="新增常用標籤 (如 #夏天)" className="flex-1 p-2 border rounded-lg text-xs focus:ring-1 focus:ring-purple-500 outline-none" />
-                                        <button onClick={handleAddNewTag} className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200">
-                                            <div className="w-3 h-3"><Icons.Plus /></div>
-                                        </button>
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">品牌</label><div className="flex gap-2"><select value={brand} onChange={e => setBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm bg-white">{availableBrands.map(b => <option key={b} value={b}>{b}</option>)}</select>{brand === '自訂' && (<input type="text" placeholder="輸入品牌" value={customBrand} onChange={e => setCustomBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm outline-none" />)}</div></div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">標籤 (點擊選取)</label><div className="flex flex-wrap gap-2 mb-2">{userTags.map(tag => (<div key={tag} className={`px-2 py-1 rounded-md text-xs cursor-pointer flex items-center gap-1 border ${selectedTags.includes(tag) ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200'}`} onClick={() => toggleTag(tag)}><span>{tag}</span><span onClick={(e) => { e.stopPropagation(); onDeleteTag(tag); }} className="text-gray-400 hover:text-red-500 px-1 font-bold">×</span></div>))}{userTags.length === 0 && <span className="text-xs text-gray-400">尚無儲存標籤</span>}</div><div className="flex gap-2"><input type="text" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} placeholder="新增標籤" className="flex-1 p-2 border rounded-lg text-xs outline-none" /><button onClick={handleAddNewTag} className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><div className="w-3 h-3"><Icons.Plus /></div></button></div></div>
                             </div>
                         </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                            <button onClick={onClose} className="px-4 py-2 text-gray-500 text-sm font-bold hover:bg-gray-200 rounded-lg">取消</button>
-                            <button onClick={handleConfirm} className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-700">儲存</button>
-                        </div>
+                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2"><button onClick={onClose} className="px-4 py-2 text-gray-500 text-sm font-bold hover:bg-gray-200 rounded-lg">取消</button><button onClick={handleConfirm} className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-700">儲存</button></div>
                     </div>
                 </div>
             );
         };
 
-        // --- 新增：穿搭日誌詳情視窗 ---
-        const LookDetailsModal = ({ isOpen, onClose, look }) => {
+        const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename }) => {
             if (!isOpen || !look) return null;
-
             const ItemCard = ({ item, label, icon }) => {
                 if (!item) return null;
                 return (
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <div className="w-12 h-12 bg-white rounded-md overflow-hidden flex-shrink-0 border border-gray-200">
-                            <img src={item.src} className="w-full h-full object-cover" />
-                        </div>
+                        <div className="w-12 h-12 bg-white rounded-md overflow-hidden flex-shrink-0 border border-gray-200"><img src={item.src} className="w-full h-full object-cover" /></div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs text-purple-600 font-bold flex items-center gap-1">
-                                <div className="w-3 h-3">{icon}</div> {label}
-                            </p>
+                            <p className="text-xs text-purple-600 font-bold flex items-center gap-1"><div className="w-3 h-3">{icon}</div> {label}</p>
                             <p className="text-sm font-medium text-gray-800 truncate">{item.name || "未命名單品"}</p>
-                            {(item.brand || item.subCategory) && (
-                                <p className="text-[10px] text-gray-500 truncate">
-                                    {item.brand ? item.brand : ''} 
-                                    {item.brand && item.subCategory ? ' · ' : ''}
-                                    {item.subCategory ? item.subCategory : ''}
-                                </p>
-                            )}
-                            {/* 顯示歷史穿搭的標籤 (如果有的話) */}
-                            {item.tags && item.tags.length > 0 && (
-                                <div className="flex gap-1 mt-1 overflow-x-auto scrollbar-hide">
-                                    {item.tags.map(tag => <span key={tag} className="text-[9px] bg-purple-50 text-purple-600 px-1 rounded">{tag}</span>)}
-                                </div>
-                            )}
+                            {(item.brand || item.subCategory) && <p className="text-[10px] text-gray-500 truncate">{item.brand ? item.brand : ''} {item.brand && item.subCategory ? ' · ' : ''}{item.subCategory ? item.subCategory : ''}</p>}
+                            {item.tags && item.tags.length > 0 && (<div className="flex gap-1 mt-1 overflow-x-auto scrollbar-hide">{item.tags.map(tag => <span key={tag} className="text-[9px] bg-purple-50 text-purple-600 px-1 rounded">{tag}</span>)}</div>)}
                         </div>
                     </div>
                 );
             };
-
             return (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
                     <div className="bg-white w-full max-w-4xl h-[90vh] md:h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
-                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-1/2 md:h-full">
-                            <img src={look.src} className="w-full h-full object-contain" />
-                            <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden"><div className="w-5 h-5"><Icons.X /></div></button>
-                        </div>
+                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-1/2 md:h-full"><img src={look.src} className="w-full h-full object-contain" /><button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden"><div className="w-5 h-5"><Icons.X /></div></button></div>
                         <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full bg-white">
-                            <div className="p-4 border-b flex justify-between items-center">
-                                <div><h3 className="font-bold text-lg text-gray-800">穿搭詳情</h3><p className="text-xs text-gray-500">建立於: {look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleString() : '未知時間'}</p></div>
-                                <button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
-                            </div>
+                            <div className="p-4 border-b flex justify-between items-center"><div><div className="flex items-center gap-2"><h3 className="font-bold text-lg text-gray-800">{lookName}</h3><button onClick={() => onRename(look.id, lookName)} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button></div><p className="text-xs text-gray-500">建立於: {look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleString() : '未知時間'}</p></div><button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button></div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">搭配清單</h4>
-                                {look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無髮型紀錄</div>}
-                                {look.items?.upper ? <ItemCard item={look.items.upper} label="上身" icon={<Icons.Shirt />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無上身紀錄</div>}
-                                {look.items?.lower ? <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無下身紀錄</div>}
-                                {look.items?.shoes ? <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無鞋子紀錄</div>}
-                                {look.items?.accessory ? <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無配件紀錄</div>}
+                                <div className="space-y-2"><h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">💇 髮型</h5>{look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無髮型紀錄</div>}</div>
+                                <div className="space-y-2 pt-2 border-t border-dashed border-gray-100"><h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">👗 服飾</h5>{look.items?.upper ? <ItemCard item={look.items.upper} label="上身" icon={<Icons.Shirt />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無上身紀錄</div>}{look.items?.lower ? <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無下身紀錄</div>}{look.items?.shoes ? <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無鞋子紀錄</div>}{look.items?.accessory ? <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無配件紀錄</div>}</div>
                             </div>
                             <div className="p-4 border-t bg-gray-50"><a href={look.src} download={`look-${look.id}.jpg`} className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載穿搭照</a></div>
                         </div>
@@ -466,7 +387,6 @@
             );
         };
 
-        // --- 登入/註冊畫面 ---
         const AuthScreen = ({ isFirebaseReady }) => {
             const [isRegister, setIsRegister] = useState(false);
             const [email, setEmail] = useState('');
@@ -487,7 +407,6 @@
                         await window.Firebase.signInWithEmailAndPassword(auth, email, password);
                     }
                 } catch (err) {
-                    console.error("Auth Error", err);
                     let msg = err.message;
                     if (err.code === 'auth/invalid-email') msg = "Email 格式錯誤";
                     if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') msg = "帳號或密碼錯誤";
@@ -505,11 +424,7 @@
                     const auth = window.Firebase.getAuth();
                     const provider = new window.Firebase.GoogleAuthProvider();
                     await window.Firebase.signInWithPopup(auth, provider);
-                } catch (err) {
-                    console.error("Google Auth Error", err);
-                    setError(err.message);
-                    setLoading(false);
-                }
+                } catch (err) { setError(err.message); setLoading(false); }
             };
 
             const handleAnonymousLogin = async () => {
@@ -518,11 +433,7 @@
                 try {
                     const auth = window.Firebase.getAuth();
                     await window.Firebase.signInAnonymously(auth);
-                } catch (err) {
-                    console.error("Anonymous Auth Error", err);
-                    setError(err.message);
-                    setLoading(false);
-                }
+                } catch (err) { setError(err.message); setLoading(false); }
             };
 
             return (
@@ -530,8 +441,7 @@
                     <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
                         <div className="flex justify-center mb-6"><div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">{loading ? <div className="animate-spin"><Icons.Loader /></div> : <Icons.User />}</div></div>
                         <h2 className="text-2xl font-bold text-center mb-2">Virtual Wardrobe</h2>
-                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的虛擬試穿衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
-                        
+                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {isRegister && <input type="text" placeholder="您的暱稱" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-purple-500 outline-none" required />}
                             <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-purple-500 outline-none" required />
@@ -539,7 +449,6 @@
                             {error && <p className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded-lg">{error}</p>}
                             <button type="submit" disabled={loading} className={`w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold hover:shadow-lg transition-all ${loading ? 'opacity-50' : ''}`}>{loading ? '處理中...' : (isRegister ? '註冊' : '登入')}</button>
                         </form>
-
                         <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-600"></div></div><div className="relative flex justify-center text-xs"><span className="px-2 bg-slate-800 text-slate-400">或使用</span></div></div>
                         <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full py-3 rounded-xl bg-white text-slate-700 font-bold hover:bg-gray-100 transition-all flex items-center justify-center gap-2"><div className="w-5 h-5"><Icons.Google /></div> Google 登入</button>
                         <button type="button" onClick={handleAnonymousLogin} disabled={loading} className="w-full mt-3 py-3 rounded-xl bg-slate-700 text-slate-200 font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
@@ -556,21 +465,25 @@
             const [clothes, setClothes] = useState([]);
             const [users, setUsers] = useState([]);
             const [looks, setLooks] = useState([]);
-            const [userTags, setUserTags] = useState([]); // 新增：使用者自訂標籤
-            const [userBrands, setUserBrands] = useState([]); // 新增：使用者自訂品牌
+            const [userTags, setUserTags] = useState([]); 
+            const [userBrands, setUserBrands] = useState([]); 
+            
+            // Quota
+            const [genStats, setGenStats] = useState({ count: 0, limit: 1 }); // Default limit 1 for safety
 
             const [user, setAuthUser] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             const [isFirebaseReady, setIsFirebaseReady] = useState(false);
             const [globalApiKey, setGlobalApiKey] = useState(''); 
-            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null, shoes: null }); // 新增 shoes
+            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null, shoes: null }); 
             const [selectedUser, setSelectedUser] = useState(null);
             
             const [viewCategory, setViewCategory] = useState('all'); 
             const [uploadCategory, setUploadCategory] = useState('upper');
             const [viewSubCategory, setViewSubCategory] = useState('all');
-            const [viewBrand, setViewBrand] = useState('all'); // 新增：品牌篩選
-            const [viewTag, setViewTag] = useState('all');     // 新增：標籤篩選
+            const [viewBrand, setViewBrand] = useState('all'); 
+            const [viewTag, setViewTag] = useState('all'); 
+            const [viewMode, setViewMode] = useState('grid'); 
 
             const [generatedResult, setGeneratedResult] = useState(null);
             const [isGenerating, setIsGenerating] = useState(false);
@@ -589,22 +502,16 @@
             const fileInputRefCloth = useRef(null);
             const fileInputRefUser = useRef(null);
 
-            // 當切換大分類時，重置細項篩選
             useEffect(() => {
-                setViewSubCategory('all');
-                setViewBrand('all'); // 重置品牌
-                setViewTag('all');   // 重置標籤
-                if (viewCategory !== 'all') {
-                    setUploadCategory(viewCategory);
-                }
+                if (viewCategory !== 'all') setUploadCategory(viewCategory);
+                setViewSubCategory('all'); setViewBrand('all'); setViewTag('all');   
             }, [viewCategory]);
 
             useEffect(() => {
                 const initFirebase = async () => {
                     if (!YOUR_FIREBASE_CONFIG.apiKey) return;
                     try {
-                        let app;
-                        try { app = window.Firebase.initializeApp(YOUR_FIREBASE_CONFIG); } catch(e) { app = window.Firebase.getApp(); }
+                        let app; try { app = window.Firebase.initializeApp(YOUR_FIREBASE_CONFIG); } catch(e) { app = window.Firebase.getApp(); }
                         const auth = window.Firebase.getAuth(app);
                         window.Firebase.onAuthStateChanged(auth, (u) => { setAuthUser(u); setIsFirebaseReady(true); });
                     } catch (err) { console.error("Firebase Init Error:", err); }
@@ -622,15 +529,27 @@
                         const docRef = window.Firebase.doc(db, 'app_config', 'secrets');
                         const docSnap = await window.Firebase.getDoc(docRef);
                         if (docSnap.exists()) setGlobalApiKey(docSnap.data().gemini_key || '');
-                    } catch (e) { console.error("Failed to fetch API key", e); }
+                    } catch (e) { }
                 };
                 fetchApiKey();
 
-                // 讀取使用者設定 (包含自訂標籤與品牌)
                 const unsubSettings = window.Firebase.onSnapshot(window.Firebase.doc(db, 'users', user.uid, 'settings', 'config'), (doc) => {
                     if (doc.exists()) {
                         setUserTags(doc.data().tags || []);
-                        setUserBrands(doc.data().brands || []); // 讀取自訂品牌
+                        setUserBrands(doc.data().brands || []); 
+                    }
+                });
+
+                // Init/Listen Stats
+                const statsRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'stats');
+                const unsubStats = window.Firebase.onSnapshot(statsRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setGenStats({ count: docSnap.data().count || 0, limit: docSnap.data().limit || 1 });
+                    } else {
+                        // 2. 註冊使用者預設 5 次
+                        const defaultLimit = user.isAnonymous ? 1 : 5;
+                        window.Firebase.setDoc(statsRef, { count: 0, limit: defaultLimit }, { merge: true });
+                        setGenStats({ count: 0, limit: defaultLimit });
                     }
                 });
 
@@ -638,7 +557,7 @@
                 const unsubUsers = window.Firebase.onSnapshot(window.Firebase.query(window.Firebase.collection(db, 'users', user.uid, 'models'), window.Firebase.orderBy('createdAt', 'desc')), (s) => setUsers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
                 const unsubLooks = window.Firebase.onSnapshot(window.Firebase.query(window.Firebase.collection(db, 'users', user.uid, 'looks'), window.Firebase.orderBy('createdAt', 'desc')), (s) => { setLooks(s.docs.map(d => ({ id: d.id, ...d.data() }))); setIsSyncing(false); });
                 
-                return () => { unsubClothes(); unsubUsers(); unsubLooks(); unsubSettings(); };
+                return () => { unsubClothes(); unsubUsers(); unsubLooks(); unsubSettings(); unsubStats(); };
             }, [user, isFirebaseReady]);
 
             const saveApiKeyToCloud = async (key) => {
@@ -647,7 +566,25 @@
                     const db = window.Firebase.getFirestore();
                     await window.Firebase.setDoc(window.Firebase.doc(db, 'app_config', 'secrets'), { gemini_key: key }, { merge: true });
                     setGlobalApiKey(key);
-                } catch (e) { console.error(e); alert("儲存失敗"); }
+                } catch (e) { alert("儲存失敗"); }
+            };
+
+            // Redeem Quota
+            const handleRedeem = async (code) => {
+                if (!isFirebaseReady) return false;
+                try {
+                    const db = window.Firebase.getFirestore();
+                    // Check code
+                    const codeDoc = await window.Firebase.getDoc(window.Firebase.doc(db, 'app_config', 'codes'));
+                    if (codeDoc.exists() && codeDoc.data().topup_password === code) {
+                        // Success: Add 5
+                        await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'settings', 'stats'), {
+                            limit: window.Firebase.increment(5)
+                        });
+                        return true;
+                    }
+                } catch (e) { console.error(e); }
+                return false;
             };
 
             const handleAddUserTag = async (newTag) => {
@@ -656,7 +593,7 @@
                     const db = window.Firebase.getFirestore();
                     const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
                     await window.Firebase.setDoc(docRef, { tags: window.Firebase.arrayUnion(newTag) }, { merge: true });
-                } catch (err) { console.error("Add tag error", err); }
+                } catch (err) {}
             };
 
             const handleDeleteUserTag = async (tagToDelete) => {
@@ -666,23 +603,21 @@
                     const db = window.Firebase.getFirestore();
                     const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
                     await window.Firebase.updateDoc(docRef, { tags: window.Firebase.arrayRemove(tagToDelete) });
-                } catch (err) { console.error("Delete tag error", err); }
+                } catch (err) {}
             };
 
-            // 新增自訂品牌到清單
             const handleAddUserBrand = async (newBrand) => {
                 if (!isFirebaseReady || !user) return;
                 try {
                     const db = window.Firebase.getFirestore();
                     const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
                     await window.Firebase.setDoc(docRef, { brands: window.Firebase.arrayUnion(newBrand) }, { merge: true });
-                } catch (err) { console.error("Add brand error", err); }
+                } catch (err) {}
             };
 
             const handleFileSelect = (e, type) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
                 if (type === 'user') {
                     const reader = new FileReader();
                     reader.onloadend = async () => {
@@ -747,27 +682,29 @@
                 let compressedResult = generatedResult;
                 try { compressedResult = await compressImage(generatedResult, 800, 0.6); } catch (e) {}
                 
-                const prepareItemData = async (item) => {
+                const defaultName = `穿搭 ${new Date().toLocaleDateString()}`;
+                const lookName = prompt("輸入穿搭名稱:", defaultName) || defaultName;
+
+                const prepareItemData = (item) => {
                     if (!item) return null;
-                    return {
-                        src: await compressImage(item.src, 200, 0.5),
-                        name: item.name || '',
-                        brand: item.brand || '',
-                        subCategory: item.subCategory || '',
-                        tags: item.tags || []
-                    };
+                    return { id: item.id, src: item.src, name: item.name };
                 };
 
                 const itemsUsed = { 
-                    user: await prepareItemData(selectedUser), 
-                    upper: await prepareItemData(selectedItems.upper), 
-                    lower: await prepareItemData(selectedItems.lower), 
-                    accessory: await prepareItemData(selectedItems.accessory),
-                    hairstyle: await prepareItemData(selectedItems.hairstyle),
-                    shoes: await prepareItemData(selectedItems.shoes) // 新增鞋子
+                    user: selectedUser ? { id: selectedUser.id, src: selectedUser.src, name: selectedUser.name } : null,
+                    upper: prepareItemData(selectedItems.upper), 
+                    lower: prepareItemData(selectedItems.lower), 
+                    accessory: prepareItemData(selectedItems.accessory),
+                    hairstyle: prepareItemData(selectedItems.hairstyle),
+                    shoes: prepareItemData(selectedItems.shoes) 
                 };
 
-                const lookData = { src: compressedResult, items: itemsUsed, createdAt: isFirebaseReady ? window.Firebase.serverTimestamp() : new Date() };
+                const lookData = { 
+                    name: lookName,
+                    src: compressedResult, 
+                    items: itemsUsed, 
+                    createdAt: isFirebaseReady ? window.Firebase.serverTimestamp() : new Date() 
+                };
                 
                 if (isFirebaseReady && user) {
                     try {
@@ -784,6 +721,20 @@
                     alert("❤️ 已保存到本地日誌");
                 }
             };
+            
+            const handleRenameLook = async (id, currentName) => {
+                const newName = prompt("編輯穿搭名稱:", currentName);
+                if (newName && newName !== currentName) {
+                    if (isFirebaseReady && user) {
+                         try {
+                            const db = window.Firebase.getFirestore();
+                            await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'looks', id), { name: newName });
+                        } catch (err) { alert("更名失敗"); }
+                    } else {
+                        setLooks(looks.map(l => l.id === id ? { ...l, name: newName } : l));
+                    }
+                }
+            };
 
             const handleDelete = async (id, type) => {
                 if (isFirebaseReady && user) {
@@ -797,41 +748,79 @@
                 }
                 if (type === 'cloth') { const n = { ...selectedItems }; Object.keys(n).forEach(k => { if (n[k]?.id === id) n[k] = null; }); setSelectedItems(n); }
                 else if (type === 'user' && selectedUser?.id === id) setSelectedUser(null);
-                
                 if (type === 'look' && selectedLook?.id === id) setSelectedLook(null);
             };
 
             const handleGenerateClick = async () => {
                 if (!selectedUser) return;
+
+                if (genStats.count >= genStats.limit) {
+                    alert(`🔒 額度已滿 (${genStats.count}/${genStats.limit})。\n\n請在設定中輸入代碼以獲取更多額度。`);
+                    return;
+                }
+
                 setIsGenerating(true); setGeneratedResult(null); setErrorMsg('');
                 try {
                     const result = await generateTryOnImage(selectedUser.src, selectedItems, globalApiKey, genMode, customPromptText, focusMode);
                     setGeneratedResult(result);
+                    
+                    if (isFirebaseReady) {
+                        const db = window.Firebase.getFirestore();
+                        const statsRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'stats');
+                        await window.Firebase.updateDoc(statsRef, { count: window.Firebase.increment(1) });
+                    }
                 } catch (err) { setErrorMsg(err.message); } finally { setIsGenerating(false); }
             };
             
             const handleDownload = (url, name) => { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
             const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; case 'shoes': return { text: '鞋子', icon: <Icons.Shoes /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
             const handleImageError = (e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x600/e2e8f0/94a3b8?text=Image+Error"; };
-
-            const handleRenameModel = async (id, currentName) => {
-                const newName = prompt("編輯名稱:", currentName);
-                if (newName && newName !== currentName) {
-                    if (isFirebaseReady && user) {
-                        try {
-                            const db = window.Firebase.getFirestore();
-                            await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'models', id), { name: newName });
-                        } catch (err) { alert("更名失敗"); }
-                    } else {
-                        setUsers(users.map(u => u.id === id ? { ...u, name: newName } : u));
-                    }
-                }
-            };
+            const handleRenameModel = async (id, currentName) => { const newName = prompt("編輯名稱:", currentName); if (newName && newName !== currentName) { if (isFirebaseReady && user) { try { const db = window.Firebase.getFirestore(); await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'models', id), { name: newName }); } catch (err) { alert("失敗"); } } else { setUsers(users.map(u => u.id === id ? { ...u, name: newName } : u)); } } };
+            const getLatestItemInfo = (snapshotItem, type) => { if (!snapshotItem) return null; if (type === 'user') { const current = users.find(u => u.id === snapshotItem.id); return current ? { ...current, src: snapshotItem.src } : snapshotItem; } else { const current = clothes.find(c => c.id === snapshotItem.id); return current ? { ...current, src: snapshotItem.src } : snapshotItem; } };
 
             if (!user) return <AuthScreen isFirebaseReady={isFirebaseReady} />;
             
-            // 計算所有可用的品牌清單 (預設 + 使用者自訂)
             const allBrands = Array.from(new Set([...DEFAULT_BRANDS, ...(userBrands || [])]));
+
+            const ListViewItem = ({ item, type, onDelete, onEdit }) => (
+                <div className="flex items-center gap-4 p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <img src={item.src} className="w-16 h-16 rounded-md object-cover flex-shrink-0" onError={handleImageError} />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-gray-800 truncate">{item.name}</h4>
+                            <div className="flex gap-2">
+                                <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button>
+                                <button onClick={(e) => { e.stopPropagation(); onDelete(item.id, type); }} className="text-gray-400 hover:text-red-600"><div className="w-4 h-4"><Icons.Trash /></div></button>
+                            </div>
+                        </div>
+                        {type === 'cloth' && (
+                            <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-2">
+                                <span className="bg-gray-100 px-2 py-0.5 rounded">{CLOTH_CATEGORIES[item.category]?.label || item.category}</span>
+                                {item.subCategory && <span className="bg-gray-100 px-2 py-0.5 rounded">{item.subCategory}</span>}
+                                {item.brand && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-medium">{item.brand}</span>}
+                            </div>
+                        )}
+                        {item.tags && item.tags.length > 0 && (<div className="flex gap-1 mt-2 overflow-x-auto scrollbar-hide">{item.tags.map(tag => <span key={tag} className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">#{tag}</span>)}</div>)}
+                    </div>
+                </div>
+            );
+            
+            const LookListViewItem = ({ look }) => {
+                 const hairstyle = getLatestItemInfo(look.items?.hairstyle, 'cloth');
+                 const clothingItems = [getLatestItemInfo(look.items?.upper, 'cloth'), getLatestItemInfo(look.items?.lower, 'cloth'), getLatestItemInfo(look.items?.shoes, 'cloth'), getLatestItemInfo(look.items?.accessory, 'cloth')].filter(Boolean);
+                 return (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row gap-4">
+                        <div className="relative w-full md:w-32 aspect-[3/4] md:aspect-square flex-shrink-0 cursor-pointer" onClick={() => setSelectedLook(look)}><img src={look.src} className="w-full h-full object-cover rounded-lg" onError={handleImageError} /></div>
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                            <div className="flex justify-between items-start"><div><div className="flex items-center gap-2"><h3 className="font-bold text-lg text-gray-800">{look.name || '未命名穿搭'}</h3><button onClick={() => handleRenameLook(look.id, look.name)} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button></div><p className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</p></div><button onClick={() => handleDelete(look.id, 'look')} className="text-gray-400 hover:text-red-600"><div className="w-4 h-4"><Icons.Trash /></div></button></div>
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><h5 className="text-xs font-bold text-gray-400 uppercase mb-1">💇 髮型</h5>{hairstyle ? (<div className="flex items-center gap-2"><img src={hairstyle.src} className="w-6 h-6 rounded-full object-cover border" /><span className="text-sm text-gray-700 truncate">{hairstyle.name}</span></div>) : <span className="text-xs text-gray-300">無</span>}</div>
+                                <div><h5 className="text-xs font-bold text-gray-400 uppercase mb-1">👗 服飾</h5>{clothingItems.length > 0 ? (<div className="flex flex-wrap gap-2">{clothingItems.map((item, idx) => (<div key={idx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100 max-w-full"><span className="text-xs text-gray-700 truncate max-w-[80px]">{item.name}</span></div>))}</div>) : <span className="text-xs text-gray-300">無</span>}</div>
+                            </div>
+                        </div>
+                    </div>
+                 );
+            };
 
             return (
                 <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
@@ -844,166 +833,69 @@
                         
                         {activeTab === 'wardrobe' && (
                             <div className="animate-fade-in">
-                                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-between gap-4">
-                                    <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-full w-full md:w-auto">
+                                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-[70%] md:max-w-none scrollbar-hide">
                                         {['all', 'upper', 'lower', 'shoes', 'accessory', 'hairstyle'].map(type => (
-                                            <button key={type} onClick={() => setViewCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${viewCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>{getCategoryLabel(type).text}</button>
+                                            <button key={type} onClick={() => setViewCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${viewCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>{CLOTH_CATEGORIES[type]?.label || '全部'}</button>
                                         ))}
                                     </div>
-                                    
-                                    <div className="flex flex-wrap gap-2 w-full items-center">
-                                        {/* 種類篩選器 */}
-                                        {viewCategory !== 'all' && (
-                                            <select value={viewSubCategory} onChange={e => setViewSubCategory(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
-                                                <option value="all">所有種類</option>
-                                                {CLOTH_CATEGORIES[viewCategory].types.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
-                                        )}
-
-                                        {/* 品牌篩選器 (新增) */}
-                                        <select value={viewBrand} onChange={e => setViewBrand(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
-                                            <option value="all">所有品牌</option>
-                                            {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                                        </select>
-
-                                        {/* 標籤篩選器 (新增) */}
-                                        <select value={viewTag} onChange={e => setViewTag(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
-                                            <option value="all">所有標籤</option>
-                                            {userTags.map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
-
-                                        <div className="flex-1"></div>
-
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 新增單品</button>
-                                            <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'cloth')} />
+                                    <div className="flex gap-2">
+                                        <div className="flex items-center gap-2 w-full md:w-auto">
+                                            {viewCategory !== 'all' && (<select value={viewSubCategory} onChange={e => setViewSubCategory(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none"><option value="all">所有種類</option>{CLOTH_CATEGORIES[viewCategory].types.map(t => <option key={t} value={t}>{t}</option>)}</select>)}
+                                            <select value={viewBrand} onChange={e => setViewBrand(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none"><option value="all">所有品牌</option>{allBrands.map(b => <option key={b} value={b}>{b}</option>)}</select>
+                                            <select value={viewTag} onChange={e => setViewTag(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none"><option value="all">所有標籤</option>{userTags.map(t => <option key={t} value={t}>{t}</option>)}</select>
                                         </div>
+                                        <button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-gray-100 rounded-lg text-gray-600 hover:bg-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button>
+                                        <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 新增單品</button>
+                                        <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'cloth')} />
                                     </div>
                                 </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
-                                    {clothes.filter(item => {
-                                        const catMatch = viewCategory === 'all' || item.category === viewCategory;
-                                        const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
-                                        const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
-                                        const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
-                                        return catMatch && subMatch && brandMatch && tagMatch;
-                                    }).map((item) => (
-                                        <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all hover:shadow-md">
-                                            <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
-                                            
-                                            {/* Tags Overlay */}
-                                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
-                                                <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md flex items-center gap-1">
-                                                    <div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div>
-                                                    {item.subCategory || getCategoryLabel(item.category).text}
+                                {viewMode === 'grid' ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
+                                        {clothes.filter(item => {
+                                            const catMatch = viewCategory === 'all' || item.category === viewCategory;
+                                            const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
+                                            const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
+                                            const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
+                                            return catMatch && subMatch && brandMatch && tagMatch;
+                                        }).map((item) => (
+                                            <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all hover:shadow-md">
+                                                <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
+                                                <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
+                                                    <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md flex items-center gap-1"><div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div>{item.subCategory || getCategoryLabel(item.category).text}</div>
+                                                    {item.brand && <div className="bg-white/90 text-gray-700 text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm">{item.brand}</div>}
+                                                    {item.tags && item.tags.length > 0 && (<div className="flex flex-wrap gap-1">{item.tags.slice(0, 3).map(tag => (<div key={tag} className="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded-md shadow-sm">#{tag}</div>))}</div>)}
                                                 </div>
-                                                {item.brand && <div className="bg-white/90 text-gray-700 text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm">{item.brand}</div>}
-                                                {/* 顯示標籤 */}
-                                                {item.tags && item.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {item.tags.slice(0, 3).map(tag => (
-                                                            <div key={tag} className="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded-md shadow-sm">#{tag}</div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-6"><p className="text-white text-xs font-medium truncate">{item.name}</p></div>
+                                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); handleEditItem(item); }} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button><button onClick={(e) => { e.stopPropagation(); handleDelete(item.id, 'cloth'); }} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button></div>
                                             </div>
-                                            
-                                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-6"><p className="text-white text-xs font-medium truncate">{item.name}</p></div>
-
-                                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={(e) => { e.stopPropagation(); handleEditItem(item); }} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id, 'cloth'); }} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {clothes.filter(item => {
-                                        const catMatch = viewCategory === 'all' || item.category === viewCategory;
-                                        const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
-                                        const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
-                                        const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
-                                        return catMatch && subMatch && brandMatch && tagMatch;
-                                    }).length === 0 && (
-                                        <div className="col-span-full py-12 flex flex-col items-center text-gray-400">
-                                            <div className="w-12 h-12 mb-2 opacity-20"><Icons.Shirt /></div>
-                                            <p className="text-sm">這個分類還沒有物品，快上傳一件吧！</p>
-                                        </div>
-                                    )}
-                                </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-3 pb-10">
+                                        {clothes.filter(item => {
+                                            const catMatch = viewCategory === 'all' || item.category === viewCategory;
+                                            const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
+                                            const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
+                                            const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
+                                            return catMatch && subMatch && brandMatch && tagMatch;
+                                        }).map(item => (<ListViewItem key={item.id} item={item} type="cloth" onDelete={handleDelete} onEdit={handleEditItem} />))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {activeTab === 'user' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">模特兒管理</h2><button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800"><div className="w-4 h-4"><Icons.Camera /></div> 上傳照片</button><input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'user')} /></div><div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-10">{users.map((item) => (<div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"><img src={item.src} onError={handleImageError} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white text-xs font-bold">{item.name || "我"}</div><div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleRenameModel(item.id, item.name)} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button><button onClick={() => handleDelete(item.id, 'user')} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button></div></div>))}</div></div>)}
+                        {activeTab === 'user' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">模特兒管理</h2><div className="flex gap-2"><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button><button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800"><div className="w-4 h-4"><Icons.Camera /></div> 上傳照片</button><input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'user')} /></div></div>{viewMode === 'grid' ? (<div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-10">{users.map((item) => (<div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"><img src={item.src} onError={handleImageError} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white text-xs font-bold">{item.name || "我"}</div><div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleRenameModel(item.id, item.name)} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button><button onClick={() => handleDelete(item.id, 'user')} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button></div></div>))}</div>) : (<div className="flex flex-col gap-3 pb-10">{users.map(item => (<ListViewItem key={item.id} item={item} type="user" onDelete={handleDelete} onEdit={() => handleRenameModel(item.id, item.name)} />))}</div>)}</div>)}
                         
-                        {activeTab === 'studio' && (
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10">
-                                <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
-                                    <div className="w-full lg:w-1/3">
-                                        <h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3>
-                                        <div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div>
-                                    </div>
-                                    <div className="w-full lg:w-2/3">
-                                        <h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                            {['hairstyle', 'upper', 'lower', 'shoes', 'accessory'].map(slot => (
-                                                <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>
-                                                    {selectedItems[slot] ? (
-                                                        <div className="relative w-full h-full p-2">
-                                                            <img src={selectedItems[slot].src} className="w-full h-full object-contain" />
-                                                            <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button>
-                                                            <span className="absolute bottom-1 left-0 right-0 text-[10px] text-center text-purple-700 font-bold bg-white/80">{selectedItems[slot].name || getCategoryLabel(slot).text}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <div className="w-6 h-6 text-gray-300 mb-1">{getCategoryLabel(slot).icon}</div>
-                                                            <span className="text-xs text-gray-400">{getCategoryLabel(slot).text}</span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                    <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3>
-                                    
-                                    <div className="flex flex-col gap-4">
-                                        {/* Focus Mode Switch */}
-                                        <div className="flex bg-white p-1 rounded-lg border border-gray-200">
-                                            <button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
-                                                <div className="w-4 h-4"><Icons.Body /></div> 全身服飾
-                                            </button>
-                                            <button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
-                                                <div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫
-                                            </button>
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            {[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (
-                                                <button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>
-                                            ))}
-                                        </div>
-                                        
-                                        {genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}
-                                        <p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>
-                                {(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}
-                            </div>
-                        )}
+                        {activeTab === 'studio' && (<div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10"><div className="flex flex-col lg:flex-row gap-8 justify-center items-start"><div className="w-full lg:w-1/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3><div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div></div><div className="w-full lg:w-2/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4">{['hairstyle', 'upper', 'lower', 'shoes', 'accessory'].map(slot => (<div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>{selectedItems[slot] ? (<div className="relative w-full h-full p-2"><img src={selectedItems[slot].src} className="w-full h-full object-contain" /><button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button><span className="absolute bottom-1 left-0 right-0 text-[10px] text-center text-purple-700 font-bold bg-white/80">{selectedItems[slot].name || getCategoryLabel(slot).text}</span></div>) : (<><div className="w-6 h-6 text-gray-300 mb-1">{getCategoryLabel(slot).icon}</div><span className="text-xs text-gray-400">{getCategoryLabel(slot).text}</span></>)}</div>))}</div></div></div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-4"><div className="flex bg-white p-1 rounded-lg border border-gray-200"><button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Body /></div> 全身服飾</button><button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫</button></div><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}<p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p></div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
+                        {activeTab === 'lookbook' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">穿搭日誌</h2><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button></div>{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : (viewMode === 'grid' ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div> : <div className="flex flex-col gap-4 pb-10">{looks.map(look => <LookListViewItem key={look.id} look={look} />)}</div>)}</div>)}
                         
-                        {activeTab === 'lookbook' && (<div className="animate-fade-in">{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div>}</div>)}
-                        
-                        {/* Selector Modal */}
                         {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{getCategoryLabel(currentSelectionSlot).text}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">{clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2"><p>沒有這個分類的物品</p><button onClick={() => { setIsSelectorOpen(false); setIsUploadModalOpen(true); }} className="text-purple-600 font-bold">去新增</button></div> : <div className="grid grid-cols-3 gap-3">{clothes.filter(c => c.category === currentSelectionSlot).map(item => (<div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 overflow-hidden shadow-sm relative"><img src={item.src} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 truncate">{item.name}</div></div>))}</div>}</div></div></div>)}
-                        
-                        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} />}
+                        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} genStats={genStats} onRedeem={handleRedeem} />}
                         {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} userTags={userTags} onAddTag={handleAddUserTag} onDeleteTag={handleDeleteUserTag} userBrands={userBrands} onAddBrand={handleAddUserBrand} />}
-                        {selectedLook && <LookDetailsModal isOpen={!!selectedLook} onClose={() => setSelectedLook(null)} look={selectedLook} />}
+                        {selectedLook && <LookDetailsModal isOpen={!!selectedLook} onClose={() => setSelectedLook(null)} look={selectedLook} lookName={selectedLook.name} onRename={handleRenameLook} />}
                     </main>
+                    <footer className="py-6 text-center text-gray-400 text-xs">Created by weic58 and Google Gemini, 2026</footer>
                 </div>
             );
         };
