@@ -126,59 +126,44 @@
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full', activeSlots = [], onDebugPrompt) => {
             if (!apiKey) throw new Error("請在設定中輸入 API Key");
             
-            // --- 核心修改：恢復指定的 Prompt 寫法，但改為支援 activeSlots 迴圈 ---
-            
-            let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
-        
-            // 保留您的 imageParts 處理邏輯
+            // [修改 1] 開頭直接定義任務性質為「保留特徵」，而非單純「試穿」
+            let promptText = "這是一項【照片編輯與合成】任務。第一張圖片是'基準人物 (Base Person)'。";
+
             const imageParts = [];
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
 
-            // 1. 保留新版的動態迴圈 (這是好的功能)
             activeSlots.forEach(slot => {
                 const item = selectedItems[slot.id];
                 if (item) {
-                    // ... 標籤判斷邏輯保持不變 ...
-                    let label = "衣物";
-                    if (slot.category === 'hairstyle') label = "髮型參考";
-                    else if (slot.category === 'upper') label = "上身衣物";
-                    else if (slot.category === 'lower') label = "下身衣物";
-                    else if (slot.category === 'accessory') label = "時尚配件";
-                    else if (slot.category === 'shoes') label = "鞋子";
-                    else if (slot.category === 'outerwear') label = "外套";
-
+                    let label = "服飾配件"; // 統一標籤，減少 AI 混亂
+                    if (slot.category === 'hairstyle') label = "目標髮型";
+                    
                     promptText += ` 第 ${clothIndex} 張圖片是'${label}'。`;
                     imageParts.push({ inlineData: { mimeType: "image/jpeg", data: item.src.split(',')[1] } });
                     clothIndex++;
                 }
             });
             
-            // 2. [關鍵修改] 這裡改回原本的「強硬簡潔」風格，拿掉過多的形容詞
-            // 我們只保留必要的「換背景」跟「全身」指令，並把「保留臉部」做得更隱晦但強硬。
+            // [修改 2] 使用「指令式」語法，而非「描述式」
+            // 告訴 AI：目標是把衣服「穿」在第一張圖的人身上，而不是「生成」一張新圖
+            promptText += " 任務目標：請將上述衣物自然地合成到第一張圖片的'基準人物'身上。";
 
-            promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。";
-
-            // 用原本的 [重要指令] 格式，這對 Gemini 來說權重很高
-            promptText += " [重要指令]：";
-            promptText += " 1. 必須嚴格保留第一張圖片(使用者)的臉部特徵與身形，不要改變種族或長相。"; // 加強語氣但不多做解釋
+            // [修改 3] 加強防禦：使用負面約束與絕對命令 (放在最後面，權重最高)
+            promptText += " \n\n[絕對遵守規則]：";
+            promptText += " 1. 【臉部鎖定】：絕對不可改變'基準人物'的臉部特徵、五官比例與神情。這不是生成新人物，是編輯原圖。";
+            promptText += " 2. 【膚色鎖定】：保持原圖的膚色與光影質感。";
             
-            // 處理特寫與全身的邏輯 (簡化版)
             if (focusMode === 'face') {
-                promptText += " 2. 請生成半身特寫，重點在於展示臉部與髮型。";
+                promptText += " 3. 輸出範圍：保留頭部與肩膀區域的特寫。";
             } else {
-                promptText += " 2. 模特兒請呈現'正面全身'，完整展示穿搭。";
+                promptText += " 3. 輸出範圍：根據衣物調整為全身或半身，但頭部必須與原圖完全一致。";
             }
 
-            // 處理背景與風格 (大幅簡化，去除微笑、牙齒、光影等干擾詞)
-            if (mode === 'studio') {
-                promptText += " 3. 背景替換為'純白色攝影棚背景'。";
-            } else if (mode === 'minimal') {
-                promptText += " 3. 保持原圖背景與構圖。";
-            } else if (mode === 'custom') {
-                promptText += ` 3. 背景場景：${customPrompt}。`;
-            }
+            // 場景部分保持極簡
+            if (mode === 'studio') promptText += " 4. 背景：單純白底。";
+            else if (mode === 'custom') promptText += ` 4. 背景：${customPrompt}。`;
 
             // ==========================================
             // [新增] 這裡呼叫 callback 回傳提示詞給 UI
@@ -1212,3 +1197,4 @@
     </script>
 </body>
 </html>
+
