@@ -413,7 +413,7 @@
                 }
             };
             
-            // To support item renaming, we need a handler in StyleMate passed down.
+            // To support item renaming, we need a handler in VirtualWardrobe passed down.
             // Assuming `onRenameItem` is passed as a prop if implemented.
             // Since it wasn't explicitly added in the main component yet, I will skip complex item rename logic here to keep it stable,
             // unless the user explicitly asks for "Edit item name INSIDE look" again.
@@ -430,7 +430,7 @@
                                 <button className="text-gray-300 hover:text-purple-600" onClick={() => {
                                     // Basic prompt implementation for item rename
                                     // This requires a callback to update Firestore 'looks/{id}/items/{slot}/name'
-                                    // Not fully wired in StyleMate yet.
+                                    // Not fully wired in VirtualWardrobe yet.
                                 }}><div className="w-3 h-3"><Icons.Edit /></div></button>
                             </div>
                             <p className="text-sm font-medium text-gray-800 truncate">{item.name || "未命名單品"}</p>
@@ -546,7 +546,7 @@
             );
         };
 
-        const StyleMate = () => {
+        const VirtualWardrobe = () => {
             const [showSettings, setShowSettings] = useState(false);
             const [activeTab, setActiveTab] = useState('wardrobe');
             const [clothes, setClothes] = useState([]);
@@ -990,7 +990,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<StyleMate />);
+        root.render(<VirtualWardrobe />);
     </script>
 </body>
 </html>
