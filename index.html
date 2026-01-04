@@ -629,7 +629,7 @@
                     if (docSnap.exists()) {
                         setGenStats({ count: docSnap.data().count || 0, limit: docSnap.data().limit || 1 });
                     } else {
-                        const defaultLimit = user.isAnonymous ? 1 : 5;
+                        const defaultLimit = 0; //user.isAnonymous ? 1 : 5;
                         window.Firebase.setDoc(statsRef, { count: 0, limit: defaultLimit }, { merge: true });
                         setGenStats({ count: 0, limit: defaultLimit });
                     }
@@ -994,3 +994,4 @@
     </script>
 </body>
 </html>
+
