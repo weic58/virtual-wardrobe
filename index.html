@@ -45,7 +45,7 @@
 
         const API_KEY = "AIzaSyAojHhJ38PbIayu8MBrqJ3_W0areVGcykU"; 
 
-        // 請到 Firebase Console -> 專案設定 -> 複製 sdk config    
+        // 請到 Firebase Console -> 專案設定 -> 複製 sdk config
         const YOUR_FIREBASE_CONFIG = {
         apiKey: "AIzaSyDO31PRKXec6po5prR0CquPxiqRfubS9KQ",
         authDomain: "virtual-wardrobe-photos.firebaseapp.com",
@@ -226,10 +226,6 @@
                 setVerifying(true);
 
                 if (!isFirebaseReady) {
-                    if (input === "1234") { // 本地緊急後門
-                        onUnlock();
-                        return;
-                    }
                     alert("⚠️ 雲端連線中... 請稍後再試。");
                     setVerifying(false);
                     return;
@@ -255,18 +251,7 @@
                     }
                 } catch (err) {
                     console.error("Auth Error", err);
-                    if (err.code === 'permission-denied') {
-                        // 權限錯誤時的緊急處理
-                        if (confirm("⚠️ 權限錯誤：無法讀取密碼檔案。\n\n這通常是因為 Firestore 規則未設定允許 'app_config/lock' 讀取。\n\n是否使用備用密碼 '1234' 暫時進入本地模式？")) {
-                            if (input === "1234") onUnlock();
-                            else {
-                                alert("請輸入備用密碼：1234");
-                                setInput('1234');
-                            }
-                        }
-                    } else {
-                        alert("驗證錯誤: " + err.message);
-                    }
+                    alert("驗證錯誤: " + err.message);
                 } finally {
                     setVerifying(false);
                 }
@@ -385,18 +370,49 @@
             };
 
             const handleSaveLook = async () => {
-                if (!generatedResult || !isFirebaseReady || !user) return;
+                if (!generatedResult) return;
+                
+                // 1. 壓縮生成圖 (關鍵修正：避免超過 Firestore 1MB 限制)
+                let compressedResult = generatedResult;
                 try {
-                    const db = window.Firebase.getFirestore();
-                    const itemsUsed = {
-                        user: { src: selectedUser.src }, 
-                        upper: selectedItems.upper ? { src: selectedItems.upper.src } : null,
-                        lower: selectedItems.lower ? { src: selectedItems.lower.src } : null,
-                        accessory: selectedItems.accessory ? { src: selectedItems.accessory.src } : null,
-                    };
-                    await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, 'looks'), { src: generatedResult, items: itemsUsed, createdAt: window.Firebase.serverTimestamp() });
-                    alert("已保存！");
-                } catch (err) { alert("保存失敗"); }
+                    // 再次壓縮以確保不超過大小限制
+                    compressedResult = await compressImage(generatedResult, 800, 0.6);
+                } catch (e) {
+                    console.error("Compression failed", e);
+                }
+
+                const itemsUsed = {
+                    user: { src: selectedUser.src }, // 注意：如果這裡原圖也很大，仍有風險
+                    upper: selectedItems.upper ? { src: selectedItems.upper.src } : null,
+                    lower: selectedItems.lower ? { src: selectedItems.lower.src } : null,
+                    accessory: selectedItems.accessory ? { src: selectedItems.accessory.src } : null,
+                };
+
+                const lookData = { 
+                    src: compressedResult, 
+                    items: itemsUsed, 
+                    createdAt: isFirebaseReady ? window.Firebase.serverTimestamp() : new Date() 
+                };
+
+                if (isFirebaseReady && user) {
+                    try {
+                        const db = window.Firebase.getFirestore();
+                        await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, 'looks'), lookData);
+                        alert("❤️ 已保存到雲端日誌！");
+                    } catch (err) { 
+                        console.error("Save Error:", err);
+                        if (err.code === 'invalid-argument' && err.message.includes('exceeds the maximum allowed size')) {
+                            alert("保存失敗：圖片檔案過大，超過資料庫限制。\n建議減少搭配單品或重新上傳較小的素材圖。");
+                        } else {
+                            alert("保存失敗: " + err.message); 
+                        }
+                    }
+                } else {
+                    // 本地模式支援
+                    const newLook = { id: Date.now(), ...lookData };
+                    setLooks([newLook, ...looks]);
+                    alert("❤️ 已保存到本地日誌 (重新整理後會消失)");
+                }
             };
 
             const handleDelete = async (id, type) => {
