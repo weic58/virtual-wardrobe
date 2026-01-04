@@ -123,7 +123,7 @@
             Coin: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
         };
 
-        const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full', activeSlots = []) => {
+        const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full', activeSlots = [], onDebugPrompt) => {
             if (!apiKey) throw new Error("請在設定中輸入 API Key");
             
             // --- 核心修改：恢復指定的 Prompt 寫法，但改為支援 activeSlots 迴圈 ---
@@ -164,11 +164,11 @@
             }
 
             if (mode === 'studio') {
-                promptText += " 1. 背景：純白色攝影棚背景。 2. 光影：專業棚拍打光。 3. 姿勢：正面展示。";
+                promptText += " 1. 最優先保留使用者臉部特徵。 2. 背景：純白色攝影棚背景。 3. 光影：專業棚拍打光。 4. 姿勢：正面展示，面帶微笑但不露齒。";
             } else if (mode === 'minimal') {
-                promptText += " 1. 嚴格保留原圖背景與構圖。 2. 不要改變模特兒姿勢。 3. 最優先保留臉部特徵。";
+                promptText += " 1. 最優先保留臉部特徵。 2. 嚴格保留原圖背景與構圖。 3. 不要改變模特兒姿勢。";
             } else if (mode === 'custom') {
-                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 確保臉部清晰。`;
+                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 最優先保留使用者臉部特徵。`;
             }
 
             try {
@@ -933,8 +933,23 @@
 
                 setIsGenerating(true); setGeneratedResult(null); setErrorMsg('');
                 try {
-                    // 這裡傳入 tryOnSlots
-                    const result = await generateTryOnImage(selectedUser.src, selectedItems, globalApiKey, genMode, customPromptText, focusMode, tryOnSlots);
+                    // 修改這裡：傳入最後一個 callback 函式來接收 Prompt
+                    const result = await generateTryOnImage(
+                        selectedUser.src, 
+                        selectedItems, 
+                        globalApiKey, 
+                        genMode, 
+                        customPromptText, 
+                        focusMode, 
+                        tryOnSlots,
+                        (debugText) => {
+                            // 這裡收到 Prompt 後，直接填入自訂欄位
+                            setCustomPromptText(debugText);
+                            // 如果您希望生成後自動跳轉到「自訂指令」分頁以便觀看，可取消下行註解：
+                            // setGenMode('custom'); 
+                        }
+                    );
+
                     setGeneratedResult(result);
                     
                     if (isFirebaseReady) {
