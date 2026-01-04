@@ -3,25 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Wardrobe 虛擬試穿衣櫥</title>
+    <title>Virtual Wardrobe</title>
     
     <!-- 1. 引入 Tailwind CSS (美化介面) -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. 引入 React 和 Babel (讓瀏覽器看懂程式碼) -->
+    <!-- 2. 引入 React 和 Babel -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- 3. 引入圖示庫 Lucide -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
     <style>
-        /* 自定義動畫 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
-        .animate-slide-up { animation: slideUp 0.5s ease-out; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        
+        /* 隱藏捲軸但保持功能 */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800 font-sans">
@@ -30,24 +30,55 @@
 
     <script type="text/babel">
         // --- 設定區 ---
-        // 請在這裡填入您的 Google API Key
-        const API_KEY = "AIzaSyAojHhJ38PbIayu8MBrqJ3_W0areVGcykU"; 
+        const API_KEY = "AIzaSyAojHhJ38PbIayu8MBrqJ3_W0areVGcykU"; // 請填入您的 API Key
 
         const { useState, useRef, useEffect } = React;
 
-        // 簡單的圖示元件 (因為 CDN 使用 Lucide 需要一點轉換)
-        const Icon = ({ name, size = 24, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [name]);
-            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        // --- 內建 SVG 圖示 (修正版：設定 width/height 為 100% 以適應父容器) ---
+        const Icons = {
+            Shirt: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>,
+            Grid: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>,
+            User: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 5h4"/><path d="M3 9h4"/></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Camera: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Watch: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6"/><polyline points="12 10 12 12 13 13"/><path d="m16.13 7.66-.81-4.05a2 2 0 0 0-2.53-1.46l-4.24.85a2 2 0 0 0-1.46 2.53l.81 4.05"/><path d="m7.88 16.34.81 4.05a2 2 0 0 0 2.53 1.46l4.24-.85a2 2 0 0 0 1.46-2.53l-.81-4.05"/></svg>,
+            Loader: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
         };
+
+        // --- LocalStorage Hook (讓圖片可以儲存在瀏覽器) ---
+        function useStickyState(defaultValue, key) {
+            const [value, setValue] = useState(() => {
+                try {
+                    const stickyValue = window.localStorage.getItem(key);
+                    return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+                } catch (error) {
+                    console.error("讀取儲存資料失敗:", error);
+                    return defaultValue;
+                }
+            });
+
+            useEffect(() => {
+                try {
+                    window.localStorage.setItem(key, JSON.stringify(value));
+                } catch (error) {
+                    // 如果儲存空間滿了 (QuotaExceededError)
+                    if (error.name === 'QuotaExceededError') {
+                        alert("⚠️ 瀏覽器儲存空間已滿！請刪除一些舊衣服或照片後再試。");
+                    } else {
+                        console.error("儲存失敗:", error);
+                    }
+                }
+            }, [key, value]);
+
+            return [value, setValue];
+        }
 
         // --- API 呼叫邏輯 ---
         const generateTryOnImage = async (userImage, selectedItems, apiKey) => {
-            if (!apiKey) {
-                return new Promise((resolve) => setTimeout(() => resolve(null), 2000));
-            }
+            if (!apiKey) return new Promise((resolve) => setTimeout(() => resolve(null), 2000));
 
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
             const imageParts = [];
@@ -88,6 +119,9 @@
                     }
                 );
                 const data = await response.json();
+                
+                if (data.error) throw new Error(data.error.message || "API 權限錯誤");
+
                 if (data.candidates?.[0]?.content?.parts) {
                     const imagePart = data.candidates[0].content.parts.find(p => p.inlineData);
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
@@ -102,16 +136,11 @@
         // --- 主程式元件 ---
         const StyleMate = () => {
             const [activeTab, setActiveTab] = useState('wardrobe');
-            const [clothes, setClothes] = useState([
-                { id: 1, src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500", category: "upper", name: "白色 T-Shirt" },
-                { id: 2, src: "https://images.unsplash.com/photo-1551028919-383718bccf3b?w=500", category: "upper", name: "皮夾克" },
-                { id: 3, src: "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?w=500", category: "lower", name: "牛仔褲" },
-                { id: 4, src: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=500", category: "accessory", name: "手提包" }
-            ]);
-            const [users, setUsers] = useState([
-                { id: 1, src: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500", name: "預設模特 A" },
-                { id: 2, src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500", name: "預設模特 B" }
-            ]);
+            
+            // 使用 useStickyState 取代 useState，實現資料持久化
+            // 預設值為 [] (空陣列)，實現「一開始沒有範例圖」
+            const [clothes, setClothes] = useStickyState([], 'vw_clothes_v1');
+            const [users, setUsers] = useStickyState([], 'vw_users_v1');
             
             const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null });
             const [selectedUser, setSelectedUser] = useState(null);
@@ -125,13 +154,14 @@
             const fileInputRefCloth = useRef(null);
             const fileInputRefUser = useRef(null);
 
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            });
-
             const handleUpload = (e, type) => {
                 const file = e.target.files[0];
                 if (file) {
+                    // 檢查檔案大小，超過 1MB 壓縮或警告 (簡單起見這裡僅警告)
+                    if (file.size > 2 * 1024 * 1024) {
+                        alert("建議上傳 2MB 以下的圖片，以免瀏覽器儲存空間不足。");
+                    }
+
                     const reader = new FileReader();
                     reader.onloadend = () => {
                         if (type === 'cloth') {
@@ -169,9 +199,9 @@
                 try {
                     const result = await generateTryOnImage(selectedUser.src, selectedItems, API_KEY);
                     if (result) setGeneratedResult(result);
-                    else setErrorMsg("請填寫正確的 API Key 才能生成圖片 (現在是演示模式)");
+                    else setErrorMsg("請填寫正確的 API Key 才能生成圖片");
                 } catch (err) {
-                    setErrorMsg("連線錯誤，請稍後再試");
+                    setErrorMsg("生成失敗: " + (err.message || "未知錯誤"));
                 } finally {
                     setIsGenerating(false);
                 }
@@ -179,115 +209,134 @@
 
             const getCategoryLabel = (cat) => {
                 switch(cat) {
-                    case 'upper': return { text: '上身', icon: 'shirt' };
-                    case 'lower': return { text: '下身', icon: 'layout-grid' };
-                    case 'accessory': return { text: '配件', icon: 'watch' };
-                    default: return { text: '其他', icon: 'shirt' };
+                    case 'upper': return { text: '上身', icon: <Icons.Shirt /> };
+                    case 'lower': return { text: '下身', icon: <Icons.Grid /> };
+                    case 'accessory': return { text: '配件', icon: <Icons.Watch /> };
+                    default: return { text: '其他', icon: <Icons.Shirt /> };
                 }
+            };
+
+            // 處理圖片載入錯誤
+            const handleImageError = (e) => {
+                e.target.onerror = null;
+                e.target.src = "https://placehold.co/400x600/e2e8f0/94a3b8?text=Error";
             };
 
             return (
                 <div className="flex flex-col h-screen bg-gray-50">
-                    {/* Header */}
                     <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-lg flex items-center justify-center text-white font-bold">S</div>
+                            <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-lg flex items-center justify-center text-white font-bold">V</div>
                             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">Virtual Wardrobe</h1>
                         </div>
                     </header>
 
-                    {/* Content */}
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-5xl mx-auto w-full pb-24">
-                        
-                        {/* Tabs */}
                         <div className="flex bg-white rounded-xl p-1 shadow-sm mb-6 sticky top-0 z-0">
                             {[
-                                { id: 'wardrobe', icon: 'layout-grid', label: '衣櫥管理' },
-                                { id: 'user', icon: 'user', label: '模特兒' },
-                                { id: 'studio', icon: 'sparkles', label: '試穿' }
+                                { id: 'wardrobe', icon: <Icons.Grid />, label: '衣櫥管理' },
+                                { id: 'user', icon: <Icons.User />, label: '模特兒' },
+                                { id: 'studio', icon: <Icons.Sparkles />, label: '試穿' }
                             ].map(tab => (
                                 <button 
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === tab.id ? (tab.id === 'studio' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-purple-100 text-purple-700') : 'text-gray-500 hover:bg-gray-50'}`}
                                 >
-                                    <Icon name={tab.icon} size={18} /> {tab.label}
+                                    <div className="w-5 h-5">{tab.icon}</div> {tab.label}
                                 </button>
                             ))}
                         </div>
 
-                        {/* Wardrobe View */}
                         {activeTab === 'wardrobe' && (
                             <div className="animate-fade-in">
                                 <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium">新增類別：</span>
+                                    <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide w-full md:w-auto">
+                                        <span className="text-sm font-medium whitespace-nowrap">新增類別：</span>
                                         <div className="flex bg-gray-100 rounded-lg p-1">
                                             {['upper', 'lower', 'accessory'].map(type => (
-                                                <button key={type} onClick={() => setUploadCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${uploadCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}>
+                                                <button key={type} onClick={() => setUploadCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${uploadCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}>
                                                     {getCategoryLabel(type).text}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
-                                    <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800">
-                                        <Icon name="upload" size={16} /> 上傳到 {getCategoryLabel(uploadCategory).text}
+                                    <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800 whitespace-nowrap">
+                                        <div className="w-4 h-4"><Icons.Upload /></div> 上傳到 {getCategoryLabel(uploadCategory).text}
                                     </button>
                                     <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'cloth')} />
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {clothes.map((item) => (
-                                        <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                                            <img src={item.src} className="w-full h-full object-cover" />
-                                            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
-                                                <Icon name={getCategoryLabel(item.category).icon} size={12} /> {getCategoryLabel(item.category).text}
+                                
+                                {clothes.length === 0 ? (
+                                    <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+                                        <div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.Shirt /></div>
+                                        <p>衣櫥空空的，快上傳第一件衣服吧！</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {clothes.map((item) => (
+                                            <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                                                <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
+                                                <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                                                    <div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div> {getCategoryLabel(item.category).text}
+                                                </div>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteCloth(item.id); }} className="absolute top-2 right-2 bg-white text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="w-4 h-4"><Icons.Trash /></div>
+                                                </button>
                                             </div>
-                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCloth(item.id); }} className="absolute top-2 right-2 bg-white text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Icon name="trash-2" size={14} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* User View */}
                         {activeTab === 'user' && (
                             <div className="animate-fade-in">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-lg font-semibold">模特兒管理</h2>
                                     <button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800">
-                                        <Icon name="camera" size={16} /> 上傳照片
+                                        <div className="w-4 h-4"><Icons.Camera /></div> 上傳照片
                                     </button>
                                     <input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'user')} />
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {users.map((item) => (
-                                        <div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                                            <img src={item.src} className="w-full h-full object-cover" />
-                                            <button onClick={() => handleDeleteUser(item.id)} className="absolute top-2 right-2 bg-white text-red-500 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Icon name="trash-2" size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
+                                
+                                {users.length === 0 ? (
+                                    <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+                                        <div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.User /></div>
+                                        <p>還沒有模特兒照片，上傳一張自拍吧！</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {users.map((item) => (
+                                            <div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                                                <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
+                                                <button onClick={() => handleDeleteUser(item.id)} className="absolute top-2 right-2 bg-white text-red-500 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="w-4 h-4"><Icons.Trash /></div>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* Studio View */}
                         {activeTab === 'studio' && (
                             <div className="animate-fade-in flex flex-col gap-6">
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
                                         <div className="w-full lg:w-1/3 flex flex-col gap-3">
                                             <h3 className="text-sm font-bold text-gray-500 uppercase">Step 1: 模特兒</h3>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {users.map(u => (
-                                                    <div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}>
-                                                        <img src={u.src} className="w-full h-full object-cover" />
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            {users.length === 0 ? (
+                                                <div className="text-center p-8 bg-gray-50 rounded-xl border border-dashed text-gray-400 text-sm">請先去「模特兒」分頁上傳照片</div>
+                                            ) : (
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {users.map(u => (
+                                                        <div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}>
+                                                            <img src={u.src} onError={handleImageError} className="w-full h-full object-cover" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="w-full lg:w-2/3 flex flex-col gap-3">
                                             <h3 className="text-sm font-bold text-gray-500 uppercase">Step 2: 選擇服飾</h3>
@@ -296,12 +345,12 @@
                                                     <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-40 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:bg-gray-50'}`}>
                                                         {selectedItems[slot] ? (
                                                             <div className="relative w-full h-full p-2">
-                                                                <img src={selectedItems[slot].src} className="w-full h-full object-contain" />
-                                                                <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><Icon name="x" size={12} /></button>
+                                                                <img src={selectedItems[slot].src} onError={handleImageError} className="w-full h-full object-contain" />
+                                                                <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button>
                                                             </div>
                                                         ) : (
                                                             <>
-                                                                <Icon name={getCategoryLabel(slot).icon} size={32} className="text-gray-300 mb-2" />
+                                                                <div className="w-8 h-8 text-gray-300 mb-2">{getCategoryLabel(slot).icon}</div>
                                                                 <span className="text-sm text-gray-400">選擇{getCategoryLabel(slot).text}</span>
                                                             </>
                                                         )}
@@ -312,7 +361,7 @@
                                     </div>
                                     <div className="mt-8 flex justify-center">
                                         <button disabled={!selectedUser || (!selectedItems.upper && !selectedItems.lower && !selectedItems.accessory) || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl transition-all w-full md:w-auto flex items-center justify-center gap-2 ${(!selectedUser || (!selectedItems.upper && !selectedItems.lower && !selectedItems.accessory)) ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white hover:scale-105'}`}>
-                                            {isGenerating ? <><Icon name="loader-2" className="animate-spin" /> 處理中...</> : <><Icon name="sparkles" /> 生成試穿照</>}
+                                            {isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}
                                         </button>
                                     </div>
                                 </div>
@@ -332,22 +381,32 @@
                             </div>
                         )}
 
-                        {/* Selector Modal */}
                         {isSelectorOpen && (
                             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setIsSelectorOpen(false)}>
                                 <div className="bg-white w-full md:w-[600px] h-[70vh] rounded-t-2xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                                     <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                                        <h3 className="font-bold text-lg flex items-center gap-2"><Icon name={getCategoryLabel(currentSelectionSlot).icon} /> 選擇{getCategoryLabel(currentSelectionSlot).text}</h3>
-                                        <button onClick={() => setIsSelectorOpen(false)} className="p-2 hover:bg-gray-200 rounded-full"><Icon name="x" size={20} /></button>
+                                        <h3 className="font-bold text-lg flex items-center gap-2">
+                                            <div className="w-5 h-5">{getCategoryLabel(currentSelectionSlot).icon}</div> 
+                                            選擇{getCategoryLabel(currentSelectionSlot).text}
+                                        </h3>
+                                        <button onClick={() => setIsSelectorOpen(false)} className="p-2 hover:bg-gray-200 rounded-full"><div className="w-5 h-5"><Icons.X /></div></button>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {clothes.filter(c => c.category === currentSelectionSlot).map(item => (
-                                                <div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 hover:shadow-lg transition-all overflow-hidden">
-                                                    <img src={item.src} className="w-full h-full object-cover" />
-                                                </div>
-                                            ))}
-                                        </div>
+                                        {clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                                                <div className="w-12 h-12 opacity-20"><Icons.Shirt /></div>
+                                                <p>這個分類還沒有衣服喔</p>
+                                                <button onClick={() => { setIsSelectorOpen(false); setActiveTab('wardrobe'); setUploadCategory(currentSelectionSlot); }} className="text-purple-600 font-bold hover:underline">去上傳一件？</button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {clothes.filter(c => c.category === currentSelectionSlot).map(item => (
+                                                    <div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 hover:shadow-lg transition-all overflow-hidden">
+                                                        <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
