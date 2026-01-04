@@ -416,7 +416,7 @@
         };
 
         // --- Look Details Modal with Rename ---
-        const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename }) => {
+        const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename, onRestore }) => {
             if (!isOpen || !look) return null;
 
             // Handle rename within modal
