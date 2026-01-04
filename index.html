@@ -10,7 +10,7 @@
     <!-- 網頁圖示 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧥</text></svg>">
     
-    <title>Virtual Wardrobe</title>
+    <title>虛擬試穿衣櫥</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -21,12 +21,12 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         window.Firebase = { 
             initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
             signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile,
-            getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp 
+            getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, arrayUnion, arrayRemove 
         };
     </script>
 
@@ -47,23 +47,24 @@
         // ==========================================
 
         const YOUR_FIREBASE_CONFIG = {
-        apiKey: "AIzaSyDO31PRKXec6po5prR0CquPxiqRfubS9KQ",
-        authDomain: "virtual-wardrobe-photos.firebaseapp.com",
-        projectId: "virtual-wardrobe-photos",
-        storageBucket: "virtual-wardrobe-photos.firebasestorage.app",
-        messagingSenderId: "96273892644",
-        appId: "1:96273892644:web:3008f7f604c57669f35fb1"
+            apiKey: "AIzaSyDO31PRKXec6po5prR0CquPxiqRfubS9KQ",
+            authDomain: "virtual-wardrobe-photos.firebaseapp.com",
+            projectId: "virtual-wardrobe-photos",
+            storageBucket: "virtual-wardrobe-photos.firebasestorage.app",
+            messagingSenderId: "96273892644",
+            appId: "1:96273892644:web:3008f7f604c57669f35fb1"
         };
 
-        // --- 分類設定 ---
         const CLOTH_CATEGORIES = {
             upper: { label: '上身', types: ['長袖', '短袖', '背心', '外套', '其他'] },
             lower: { label: '下身', types: ['長褲', '短褲', '裙子', '其他'] },
+            shoes: { label: '鞋子', types: ['運動鞋', '皮鞋', '涼鞋', '靴子', '高跟鞋', '其他'] },
             accessory: { label: '配件', types: ['項鍊', '手飾', '皮帶', '領帶', '帽子', '包包', '其他'] },
             hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '其他'] }
         };
 
-        const BRANDS = ['Uniqlo', 'GU', 'MUJI', 'Nike', 'Adidas', 'Zara', 'H&M', '自訂'];
+        // 預設品牌列表
+        const DEFAULT_BRANDS = ['Uniqlo', 'GU', 'MUJI', '50%', 'Nike', 'Adidas', 'Zara', 'H&M'];
 
         // ==========================================
 
@@ -116,7 +117,10 @@
             Scissors: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></svg>,
             Eye: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>,
             Body: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/></svg>,
-            Tag: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+            Tag: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+            Shoes: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h20"/><path d="M5 20v-5.26a3 3 0 0 1 .88-2.12l5.12-5.12a2 2 0 0 1 2.83 0l5.12 5.12a3 3 0 0 1 .88 2.12V20"/><path d="M13 14h.01"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         };
 
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full') => {
@@ -130,13 +134,14 @@
             if (selectedItems.upper) { promptText += ` 第 ${clothIndex} 張圖片是'上身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.lower) { promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.accessory) { promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); clothIndex++; }
+            if (selectedItems.shoes) { promptText += ` 第 ${clothIndex} 張圖片是'鞋子'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.shoes.src.split(',')[1] } }); clothIndex++; } // 鞋子 Prompt
             
             promptText += " 請生成一張高品質、寫實的照片。";
             
             if (focusMode === 'face') {
                 promptText += " [重點指令 - 特寫模式]：請生成一張【半身或頭像特寫】，重點在於展示【臉部特徵】與【新髮型】(如果有的話)。忽略下半身穿著。";
             } else {
-                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配。";
+                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配，包含鞋子。";
             }
 
             if (mode === 'studio') {
@@ -239,8 +244,8 @@
             );
         };
 
-        // --- 上傳/編輯 彈出視窗 (新增) ---
-        const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData }) => {
+        // --- 上傳/編輯 彈出視窗 ---
+        const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData, userTags, onAddTag, onDeleteTag, userBrands, onAddBrand }) => {
             if (!isOpen) return null;
 
             const [name, setName] = useState('');
@@ -248,49 +253,78 @@
             const [subCategory, setSubCategory] = useState('長袖');
             const [brand, setBrand] = useState('Uniqlo');
             const [customBrand, setCustomBrand] = useState('');
+            const [selectedTags, setSelectedTags] = useState([]); // 當前物品選中的標籤
+            const [newTagInput, setNewTagInput] = useState('');
             const [previewUrl, setPreviewUrl] = useState('');
 
-            // 初始化資料
+            // 合併預設品牌與使用者自訂品牌
+            const availableBrands = [...DEFAULT_BRANDS, ...(userBrands || []), '自訂'];
+
             useEffect(() => {
                 if (isEdit && initialData) {
                     setName(initialData.name || '');
                     setCategory(initialData.category || 'upper');
-                    setSubCategory(initialData.subCategory || (CLOTH_CATEGORIES[initialData.category || 'upper'].types[0]));
+                    setSubCategory(initialData.subCategory || (CLOTH_CATEGORIES[initialData.category || 'upper']?.types[0] || '其他'));
                     const b = initialData.brand || 'Uniqlo';
-                    if (BRANDS.includes(b)) {
+                    
+                    if (availableBrands.includes(b)) {
                         setBrand(b);
                     } else {
                         setBrand('自訂');
                         setCustomBrand(b);
                     }
+                    setSelectedTags(initialData.tags || []);
                     setPreviewUrl(initialData.src);
                 } else if (file) {
-                    // 新增模式：從檔案名稱預設
                     const defaultName = file.name.replace(/\.[^/.]+$/, "");
                     setName(defaultName);
-                    // 預覽
                     const reader = new FileReader();
                     reader.onloadend = () => setPreviewUrl(reader.result);
                     reader.readAsDataURL(file);
                 }
-            }, [file, isEdit, initialData]);
+            }, [file, isEdit, initialData, userBrands]);
 
-            // 當大分類改變時，重置細項分類
             useEffect(() => {
-                if (!isEdit) { // 編輯模式下不自動重置，除非手動切換
-                     setSubCategory(CLOTH_CATEGORIES[category].types[0]);
+                if (!isEdit) {
+                     setSubCategory(CLOTH_CATEGORIES[category]?.types[0] || '其他');
                 }
             }, [category]);
 
             const handleConfirm = () => {
-                const finalBrand = brand === '自訂' ? customBrand : brand;
+                let finalBrand = brand;
+                if (brand === '自訂') {
+                    finalBrand = customBrand.trim();
+                    if (finalBrand && onAddBrand) {
+                         onAddBrand(finalBrand); // 儲存自訂品牌到清單
+                    }
+                }
+                
                 onConfirm({ 
                     name, 
                     category, 
                     subCategory, 
-                    brand: finalBrand 
+                    brand: finalBrand,
+                    tags: selectedTags
                 });
                 onClose();
+            };
+
+            const toggleTag = (tag) => {
+                if (selectedTags.includes(tag)) {
+                    setSelectedTags(selectedTags.filter(t => t !== tag));
+                } else {
+                    setSelectedTags([...selectedTags, tag]);
+                }
+            };
+
+            const handleAddNewTag = () => {
+                if (newTagInput.trim()) {
+                    onAddTag(newTagInput.trim());
+                    if (!selectedTags.includes(newTagInput.trim())) {
+                         setSelectedTags([...selectedTags, newTagInput.trim()]);
+                    }
+                    setNewTagInput('');
+                }
             };
 
             return (
@@ -323,7 +357,7 @@
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">種類</label>
                                         <select value={subCategory} onChange={e => setSubCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
-                                            {CLOTH_CATEGORIES[category].types.map(t => (
+                                            {CLOTH_CATEGORIES[category]?.types.map(t => (
                                                 <option key={t} value={t}>{t}</option>
                                             ))}
                                         </select>
@@ -334,11 +368,30 @@
                                     <label className="block text-xs font-bold text-gray-500 mb-1">品牌</label>
                                     <div className="flex gap-2">
                                         <select value={brand} onChange={e => setBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
-                                            {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                                            {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
                                         </select>
                                         {brand === '自訂' && (
                                             <input type="text" placeholder="輸入品牌" value={customBrand} onChange={e => setCustomBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" />
                                         )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">標籤 (點擊選取)</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {userTags.map(tag => (
+                                            <div key={tag} className={`px-2 py-1 rounded-md text-xs cursor-pointer flex items-center gap-1 border ${selectedTags.includes(tag) ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200'}`} onClick={() => toggleTag(tag)}>
+                                                <span>{tag}</span>
+                                                <span onClick={(e) => { e.stopPropagation(); onDeleteTag(tag); }} className="text-gray-400 hover:text-red-500 px-1 font-bold">×</span>
+                                            </div>
+                                        ))}
+                                        {userTags.length === 0 && <span className="text-xs text-gray-400">尚無儲存標籤</span>}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="text" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} placeholder="新增常用標籤 (如 #夏天)" className="flex-1 p-2 border rounded-lg text-xs focus:ring-1 focus:ring-purple-500 outline-none" />
+                                        <button onClick={handleAddNewTag} className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200">
+                                            <div className="w-3 h-3"><Icons.Plus /></div>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -346,6 +399,67 @@
                         <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
                             <button onClick={onClose} className="px-4 py-2 text-gray-500 text-sm font-bold hover:bg-gray-200 rounded-lg">取消</button>
                             <button onClick={handleConfirm} className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-700">儲存</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 新增：穿搭日誌詳情視窗 ---
+        const LookDetailsModal = ({ isOpen, onClose, look }) => {
+            if (!isOpen || !look) return null;
+
+            const ItemCard = ({ item, label, icon }) => {
+                if (!item) return null;
+                return (
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="w-12 h-12 bg-white rounded-md overflow-hidden flex-shrink-0 border border-gray-200">
+                            <img src={item.src} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-purple-600 font-bold flex items-center gap-1">
+                                <div className="w-3 h-3">{icon}</div> {label}
+                            </p>
+                            <p className="text-sm font-medium text-gray-800 truncate">{item.name || "未命名單品"}</p>
+                            {(item.brand || item.subCategory) && (
+                                <p className="text-[10px] text-gray-500 truncate">
+                                    {item.brand ? item.brand : ''} 
+                                    {item.brand && item.subCategory ? ' · ' : ''}
+                                    {item.subCategory ? item.subCategory : ''}
+                                </p>
+                            )}
+                            {/* 顯示歷史穿搭的標籤 (如果有的話) */}
+                            {item.tags && item.tags.length > 0 && (
+                                <div className="flex gap-1 mt-1 overflow-x-auto scrollbar-hide">
+                                    {item.tags.map(tag => <span key={tag} className="text-[9px] bg-purple-50 text-purple-600 px-1 rounded">{tag}</span>)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+                    <div className="bg-white w-full max-w-4xl h-[90vh] md:h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-1/2 md:h-full">
+                            <img src={look.src} className="w-full h-full object-contain" />
+                            <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden"><div className="w-5 h-5"><Icons.X /></div></button>
+                        </div>
+                        <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full bg-white">
+                            <div className="p-4 border-b flex justify-between items-center">
+                                <div><h3 className="font-bold text-lg text-gray-800">穿搭詳情</h3><p className="text-xs text-gray-500">建立於: {look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleString() : '未知時間'}</p></div>
+                                <button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">搭配清單</h4>
+                                {look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無髮型紀錄</div>}
+                                {look.items?.upper ? <ItemCard item={look.items.upper} label="上身" icon={<Icons.Shirt />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無上身紀錄</div>}
+                                {look.items?.lower ? <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無下身紀錄</div>}
+                                {look.items?.shoes ? <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無鞋子紀錄</div>}
+                                {look.items?.accessory ? <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} /> : <div className="p-3 text-center text-xs text-gray-400 bg-gray-50 rounded-lg">無配件紀錄</div>}
+                            </div>
+                            <div className="p-4 border-t bg-gray-50"><a href={look.src} download={`look-${look.id}.jpg`} className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載穿搭照</a></div>
                         </div>
                     </div>
                 </div>
@@ -416,7 +530,7 @@
                     <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
                         <div className="flex justify-center mb-6"><div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">{loading ? <div className="animate-spin"><Icons.Loader /></div> : <Icons.User />}</div></div>
                         <h2 className="text-2xl font-bold text-center mb-2">Virtual Wardrobe</h2>
-                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
+                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的虛擬試穿衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
                         
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {isRegister && <input type="text" placeholder="您的暱稱" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-purple-500 outline-none" required />}
@@ -427,11 +541,8 @@
                         </form>
 
                         <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-600"></div></div><div className="relative flex justify-center text-xs"><span className="px-2 bg-slate-800 text-slate-400">或使用</span></div></div>
-                        
                         <button type="button" onClick={handleGoogleLogin} disabled={loading} className="w-full py-3 rounded-xl bg-white text-slate-700 font-bold hover:bg-gray-100 transition-all flex items-center justify-center gap-2"><div className="w-5 h-5"><Icons.Google /></div> Google 登入</button>
-                        
                         <button type="button" onClick={handleAnonymousLogin} disabled={loading} className="w-full mt-3 py-3 rounded-xl bg-slate-700 text-slate-200 font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
-
                         <div className="mt-6 text-center text-sm text-slate-400">{isRegister ? "已經有帳號？" : "還沒有帳號？"} <button onClick={() => { setIsRegister(!isRegister); setError(''); }} className="ml-2 text-purple-400 hover:text-purple-300 font-bold underline">{isRegister ? "直接登入" : "立即註冊"}</button></div>
                     </div>
                 </div>
@@ -445,16 +556,21 @@
             const [clothes, setClothes] = useState([]);
             const [users, setUsers] = useState([]);
             const [looks, setLooks] = useState([]);
+            const [userTags, setUserTags] = useState([]); // 新增：使用者自訂標籤
+            const [userBrands, setUserBrands] = useState([]); // 新增：使用者自訂品牌
+
             const [user, setAuthUser] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             const [isFirebaseReady, setIsFirebaseReady] = useState(false);
             const [globalApiKey, setGlobalApiKey] = useState(''); 
-            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null });
+            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null, shoes: null }); // 新增 shoes
             const [selectedUser, setSelectedUser] = useState(null);
             
             const [viewCategory, setViewCategory] = useState('all'); 
-            // 篩選細項: all 代表全部
+            const [uploadCategory, setUploadCategory] = useState('upper');
             const [viewSubCategory, setViewSubCategory] = useState('all');
+            const [viewBrand, setViewBrand] = useState('all'); // 新增：品牌篩選
+            const [viewTag, setViewTag] = useState('all');     // 新增：標籤篩選
 
             const [generatedResult, setGeneratedResult] = useState(null);
             const [isGenerating, setIsGenerating] = useState(false);
@@ -465,10 +581,10 @@
             const [customPromptText, setCustomPromptText] = useState('');
             const [focusMode, setFocusMode] = useState('full');
 
-            // 上傳/編輯 相關狀態
             const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-            const [uploadFile, setUploadFile] = useState(null); // 暫存上傳檔案
-            const [editingItem, setEditingItem] = useState(null); // 暫存編輯物件
+            const [uploadFile, setUploadFile] = useState(null); 
+            const [editingItem, setEditingItem] = useState(null); 
+            const [selectedLook, setSelectedLook] = useState(null);
 
             const fileInputRefCloth = useRef(null);
             const fileInputRefUser = useRef(null);
@@ -476,6 +592,11 @@
             // 當切換大分類時，重置細項篩選
             useEffect(() => {
                 setViewSubCategory('all');
+                setViewBrand('all'); // 重置品牌
+                setViewTag('all');   // 重置標籤
+                if (viewCategory !== 'all') {
+                    setUploadCategory(viewCategory);
+                }
             }, [viewCategory]);
 
             useEffect(() => {
@@ -495,6 +616,7 @@
                 if (!user || !isFirebaseReady) return;
                 setIsSyncing(true);
                 const db = window.Firebase.getFirestore();
+                
                 const fetchApiKey = async () => {
                     try {
                         const docRef = window.Firebase.doc(db, 'app_config', 'secrets');
@@ -503,10 +625,20 @@
                     } catch (e) { console.error("Failed to fetch API key", e); }
                 };
                 fetchApiKey();
+
+                // 讀取使用者設定 (包含自訂標籤與品牌)
+                const unsubSettings = window.Firebase.onSnapshot(window.Firebase.doc(db, 'users', user.uid, 'settings', 'config'), (doc) => {
+                    if (doc.exists()) {
+                        setUserTags(doc.data().tags || []);
+                        setUserBrands(doc.data().brands || []); // 讀取自訂品牌
+                    }
+                });
+
                 const unsubClothes = window.Firebase.onSnapshot(window.Firebase.query(window.Firebase.collection(db, 'users', user.uid, 'clothes'), window.Firebase.orderBy('createdAt', 'desc')), (s) => setClothes(s.docs.map(d => ({ id: d.id, ...d.data() }))));
                 const unsubUsers = window.Firebase.onSnapshot(window.Firebase.query(window.Firebase.collection(db, 'users', user.uid, 'models'), window.Firebase.orderBy('createdAt', 'desc')), (s) => setUsers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
                 const unsubLooks = window.Firebase.onSnapshot(window.Firebase.query(window.Firebase.collection(db, 'users', user.uid, 'looks'), window.Firebase.orderBy('createdAt', 'desc')), (s) => { setLooks(s.docs.map(d => ({ id: d.id, ...d.data() }))); setIsSyncing(false); });
-                return () => { unsubClothes(); unsubUsers(); unsubLooks(); };
+                
+                return () => { unsubClothes(); unsubUsers(); unsubLooks(); unsubSettings(); };
             }, [user, isFirebaseReady]);
 
             const saveApiKeyToCloud = async (key) => {
@@ -518,84 +650,87 @@
                 } catch (e) { console.error(e); alert("儲存失敗"); }
             };
 
-            // 觸發上傳流程 (打開編輯器)
+            const handleAddUserTag = async (newTag) => {
+                if (!isFirebaseReady || !user) return;
+                try {
+                    const db = window.Firebase.getFirestore();
+                    const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
+                    await window.Firebase.setDoc(docRef, { tags: window.Firebase.arrayUnion(newTag) }, { merge: true });
+                } catch (err) { console.error("Add tag error", err); }
+            };
+
+            const handleDeleteUserTag = async (tagToDelete) => {
+                if (!isFirebaseReady || !user) return;
+                if (!confirm(`確定要刪除標籤 "${tagToDelete}" 嗎？`)) return;
+                try {
+                    const db = window.Firebase.getFirestore();
+                    const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
+                    await window.Firebase.updateDoc(docRef, { tags: window.Firebase.arrayRemove(tagToDelete) });
+                } catch (err) { console.error("Delete tag error", err); }
+            };
+
+            // 新增自訂品牌到清單
+            const handleAddUserBrand = async (newBrand) => {
+                if (!isFirebaseReady || !user) return;
+                try {
+                    const db = window.Firebase.getFirestore();
+                    const docRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'config');
+                    await window.Firebase.setDoc(docRef, { brands: window.Firebase.arrayUnion(newBrand) }, { merge: true });
+                } catch (err) { console.error("Add brand error", err); }
+            };
+
             const handleFileSelect = (e, type) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 
                 if (type === 'user') {
-                    // 模特兒直接上傳 (為了簡化流程，模特兒通常只需命名)
                     const reader = new FileReader();
                     reader.onloadend = async () => {
                         const compressedBase64 = await compressImage(reader.result, 800, 0.6);
                         const defaultName = file.name.replace(/\.[^/.]+$/, "");
-                        // 直接呼叫上傳邏輯
                         uploadToFirebase({ name: defaultName, src: compressedBase64 }, 'models');
                     };
                     reader.readAsDataURL(file);
                 } else {
-                    // 衣服：打開編輯視窗
                     setUploadFile(file);
-                    setEditingItem(null); // 清除編輯狀態
+                    setEditingItem(null);
                     setIsUploadModalOpen(true);
                 }
             };
 
-            // 觸發編輯流程
             const handleEditItem = (item) => {
-                setUploadFile(null); // 清除檔案狀態
+                setUploadFile(null);
                 setEditingItem(item);
                 setIsUploadModalOpen(true);
             };
 
-            // 統一上傳/更新邏輯
             const handleConfirmUpload = async (metadata) => {
                 let base64Src = editingItem?.src;
-
-                // 如果有新檔案，先壓縮
                 if (uploadFile) {
                     const reader = new FileReader();
-                    const promise = new Promise(resolve => {
-                        reader.onloadend = () => resolve(reader.result);
-                    });
+                    const promise = new Promise(resolve => { reader.onloadend = () => resolve(reader.result); });
                     reader.readAsDataURL(uploadFile);
                     const rawBase64 = await promise;
                     base64Src = await compressImage(rawBase64, 800, 0.6);
                 }
-
                 if (!base64Src) return;
-
                 const collectionName = 'clothes';
-                
                 if (isFirebaseReady && user) {
                     try {
                         const db = window.Firebase.getFirestore();
                         if (editingItem) {
-                            // 更新現有
-                            await window.Firebase.updateDoc(
-                                window.Firebase.doc(db, 'users', user.uid, collectionName, editingItem.id),
-                                { ...metadata } // 只更新資料欄位
-                            );
+                            await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, collectionName, editingItem.id), { ...metadata });
                         } else {
-                            // 新增
-                            await window.Firebase.addDoc(
-                                window.Firebase.collection(db, 'users', user.uid, collectionName),
-                                { ...metadata, src: base64Src, createdAt: window.Firebase.serverTimestamp() }
-                            );
+                            await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, collectionName), { ...metadata, src: base64Src, createdAt: window.Firebase.serverTimestamp() });
                         }
                     } catch (err) { alert("操作失敗: " + err.message); }
                 } else {
-                    // 本地模式
                     const newItem = { id: editingItem ? editingItem.id : Date.now(), src: base64Src, ...metadata };
-                    if (editingItem) {
-                        setClothes(clothes.map(c => c.id === newItem.id ? newItem : c));
-                    } else {
-                        setClothes([newItem, ...clothes]);
-                    }
+                    if (editingItem) setClothes(clothes.map(c => c.id === newItem.id ? newItem : c));
+                    else setClothes([newItem, ...clothes]);
                 }
             };
 
-            // 模特兒上傳專用
             const uploadToFirebase = async (data, collectionName) => {
                 if (isFirebaseReady && user) {
                     try {
@@ -611,14 +746,29 @@
                 if (!generatedResult) return;
                 let compressedResult = generatedResult;
                 try { compressedResult = await compressImage(generatedResult, 800, 0.6); } catch (e) {}
-                const itemsUsed = { 
-                    user: { src: selectedUser.src ? await compressImage(selectedUser.src, 200, 0.5) : "" }, 
-                    upper: selectedItems.upper ? { src: await compressImage(selectedItems.upper.src, 200, 0.5) } : null, 
-                    lower: selectedItems.lower ? { src: await compressImage(selectedItems.lower.src, 200, 0.5) } : null, 
-                    accessory: selectedItems.accessory ? { src: await compressImage(selectedItems.accessory.src, 200, 0.5) } : null,
-                    hairstyle: selectedItems.hairstyle ? { src: await compressImage(selectedItems.hairstyle.src, 200, 0.5) } : null
+                
+                const prepareItemData = async (item) => {
+                    if (!item) return null;
+                    return {
+                        src: await compressImage(item.src, 200, 0.5),
+                        name: item.name || '',
+                        brand: item.brand || '',
+                        subCategory: item.subCategory || '',
+                        tags: item.tags || []
+                    };
                 };
+
+                const itemsUsed = { 
+                    user: await prepareItemData(selectedUser), 
+                    upper: await prepareItemData(selectedItems.upper), 
+                    lower: await prepareItemData(selectedItems.lower), 
+                    accessory: await prepareItemData(selectedItems.accessory),
+                    hairstyle: await prepareItemData(selectedItems.hairstyle),
+                    shoes: await prepareItemData(selectedItems.shoes) // 新增鞋子
+                };
+
                 const lookData = { src: compressedResult, items: itemsUsed, createdAt: isFirebaseReady ? window.Firebase.serverTimestamp() : new Date() };
+                
                 if (isFirebaseReady && user) {
                     try {
                         const db = window.Firebase.getFirestore();
@@ -647,6 +797,8 @@
                 }
                 if (type === 'cloth') { const n = { ...selectedItems }; Object.keys(n).forEach(k => { if (n[k]?.id === id) n[k] = null; }); setSelectedItems(n); }
                 else if (type === 'user' && selectedUser?.id === id) setSelectedUser(null);
+                
+                if (type === 'look' && selectedLook?.id === id) setSelectedLook(null);
             };
 
             const handleGenerateClick = async () => {
@@ -659,10 +811,9 @@
             };
             
             const handleDownload = (url, name) => { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
+            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; case 'shoes': return { text: '鞋子', icon: <Icons.Shoes /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
             const handleImageError = (e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x600/e2e8f0/94a3b8?text=Image+Error"; };
 
-            // 模特兒更名
             const handleRenameModel = async (id, currentName) => {
                 const newName = prompt("編輯名稱:", currentName);
                 if (newName && newName !== currentName) {
@@ -678,6 +829,9 @@
             };
 
             if (!user) return <AuthScreen isFirebaseReady={isFirebaseReady} />;
+            
+            // 計算所有可用的品牌清單 (預設 + 使用者自訂)
+            const allBrands = Array.from(new Set([...DEFAULT_BRANDS, ...(userBrands || [])]));
 
             return (
                 <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
@@ -690,24 +844,40 @@
                         
                         {activeTab === 'wardrobe' && (
                             <div className="animate-fade-in">
-                                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-full">
-                                        {['all', 'upper', 'lower', 'accessory', 'hairstyle'].map(type => (
+                                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-between gap-4">
+                                    <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-full w-full md:w-auto">
+                                        {['all', 'upper', 'lower', 'shoes', 'accessory', 'hairstyle'].map(type => (
                                             <button key={type} onClick={() => setViewCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${viewCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>{getCategoryLabel(type).text}</button>
                                         ))}
                                     </div>
                                     
-                                    {/* 種類篩選器 */}
-                                    {viewCategory !== 'all' && (
-                                        <select value={viewSubCategory} onChange={e => setViewSubCategory(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
-                                            <option value="all">所有種類</option>
-                                            {CLOTH_CATEGORIES[viewCategory].types.map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
-                                    )}
+                                    <div className="flex flex-wrap gap-2 w-full items-center">
+                                        {/* 種類篩選器 */}
+                                        {viewCategory !== 'all' && (
+                                            <select value={viewSubCategory} onChange={e => setViewSubCategory(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
+                                                <option value="all">所有種類</option>
+                                                {CLOTH_CATEGORIES[viewCategory].types.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        )}
 
-                                    <div className="flex items-center gap-2 w-full md:w-auto">
-                                        <button onClick={() => fileInputRefCloth.current.click()} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 新增單品</button>
-                                        <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'cloth')} />
+                                        {/* 品牌篩選器 (新增) */}
+                                        <select value={viewBrand} onChange={e => setViewBrand(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
+                                            <option value="all">所有品牌</option>
+                                            {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+
+                                        {/* 標籤篩選器 (新增) */}
+                                        <select value={viewTag} onChange={e => setViewTag(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
+                                            <option value="all">所有標籤</option>
+                                            {userTags.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+
+                                        <div className="flex-1"></div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 新增單品</button>
+                                            <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'cloth')} />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -715,28 +885,31 @@
                                     {clothes.filter(item => {
                                         const catMatch = viewCategory === 'all' || item.category === viewCategory;
                                         const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
-                                        return catMatch && subMatch;
+                                        const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
+                                        const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
+                                        return catMatch && subMatch && brandMatch && tagMatch;
                                     }).map((item) => (
                                         <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all hover:shadow-md">
                                             <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
                                             
                                             {/* Tags Overlay */}
-                                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
                                                 <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md flex items-center gap-1">
                                                     <div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div>
                                                     {item.subCategory || getCategoryLabel(item.category).text}
                                                 </div>
-                                                {item.brand && (
-                                                    <div className="bg-white/90 text-gray-700 text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm">
-                                                        {item.brand}
+                                                {item.brand && <div className="bg-white/90 text-gray-700 text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm">{item.brand}</div>}
+                                                {/* 顯示標籤 */}
+                                                {item.tags && item.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {item.tags.slice(0, 3).map(tag => (
+                                                            <div key={tag} className="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded-md shadow-sm">#{tag}</div>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div>
                                             
-                                            {/* Name Label */}
-                                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-6">
-                                                <p className="text-white text-xs font-medium truncate">{item.name}</p>
-                                            </div>
+                                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-6"><p className="text-white text-xs font-medium truncate">{item.name}</p></div>
 
                                             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={(e) => { e.stopPropagation(); handleEditItem(item); }} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button>
@@ -744,6 +917,18 @@
                                             </div>
                                         </div>
                                     ))}
+                                    {clothes.filter(item => {
+                                        const catMatch = viewCategory === 'all' || item.category === viewCategory;
+                                        const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
+                                        const brandMatch = viewBrand === 'all' || item.brand === viewBrand;
+                                        const tagMatch = viewTag === 'all' || (item.tags && item.tags.includes(viewTag));
+                                        return catMatch && subMatch && brandMatch && tagMatch;
+                                    }).length === 0 && (
+                                        <div className="col-span-full py-12 flex flex-col items-center text-gray-400">
+                                            <div className="w-12 h-12 mb-2 opacity-20"><Icons.Shirt /></div>
+                                            <p className="text-sm">這個分類還沒有物品，快上傳一件吧！</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -759,8 +944,8 @@
                                     </div>
                                     <div className="w-full lg:w-2/3">
                                         <h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {['hairstyle', 'upper', 'lower', 'accessory'].map(slot => (
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                            {['hairstyle', 'upper', 'lower', 'shoes', 'accessory'].map(slot => (
                                                 <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>
                                                     {selectedItems[slot] ? (
                                                         <div className="relative w-full h-full p-2">
@@ -801,7 +986,7 @@
                                         </div>
                                         
                                         {genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}
-                                        <p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果。'}</p>
+                                        <p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p>
                                     </div>
                                 </div>
 
@@ -810,14 +995,14 @@
                             </div>
                         )}
                         
-                        {activeTab === 'lookbook' && (<div className="animate-fade-in">{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"><div className="relative aspect-[3/4] bg-gray-50"><img src={look.src} className="w-full h-full object-cover" /><button onClick={() => handleDownload(look.src, `look-${look.id}.jpg`)} className="absolute bottom-2 right-2 bg-white/90 p-2 rounded-full shadow-sm hover:bg-white text-gray-700"><div className="w-4 h-4"><Icons.Download /></div></button></div><div className="p-4 flex-1 flex flex-col justify-between"><div><h4 className="font-bold text-sm text-gray-600 mb-3">搭配單品</h4><div className="flex gap-2">{look.items?.hairstyle && <img src={look.items.hairstyle.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="髮型" />}{look.items?.upper && <img src={look.items.upper.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="上身" />}{look.items?.lower && <img src={look.items.lower.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="下身" />}{look.items?.accessory && <img src={look.items.accessory.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="配件" />}</div></div><div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={() => handleDelete(look.id, 'look')} className="text-red-400 hover:text-red-600 text-xs flex items-center gap-1"><div className="w-3 h-3"><Icons.Trash /></div> 刪除</button></div></div></div>))}</div>}</div>)}
+                        {activeTab === 'lookbook' && (<div className="animate-fade-in">{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div>}</div>)}
                         
                         {/* Selector Modal */}
                         {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{getCategoryLabel(currentSelectionSlot).text}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">{clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2"><p>沒有這個分類的物品</p><button onClick={() => { setIsSelectorOpen(false); setIsUploadModalOpen(true); }} className="text-purple-600 font-bold">去新增</button></div> : <div className="grid grid-cols-3 gap-3">{clothes.filter(c => c.category === currentSelectionSlot).map(item => (<div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 overflow-hidden shadow-sm relative"><img src={item.src} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 truncate">{item.name}</div></div>))}</div>}</div></div></div>)}
                         
-                        {/* Modals */}
                         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} />}
-                        {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} />}
+                        {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} userTags={userTags} onAddTag={handleAddUserTag} onDeleteTag={handleDeleteUserTag} userBrands={userBrands} onAddBrand={handleAddUserBrand} />}
+                        {selectedLook && <LookDetailsModal isOpen={!!selectedLook} onClose={() => setSelectedLook(null)} look={selectedLook} />}
                     </main>
                 </div>
             );
