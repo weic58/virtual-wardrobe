@@ -126,19 +126,17 @@
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full', activeSlots = [], onDebugPrompt) => {
             if (!apiKey) throw new Error("請在設定中輸入 API Key");
             
-            // 1. 回歸您原本最簡單的開頭
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
             
             const imageParts = [];
+            // 第 1 次放入使用者照片 (作為身體骨架與姿勢參考)
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
 
-            // 2. 迴圈處理，但統一標籤
             activeSlots.forEach(slot => {
                 const item = selectedItems[slot.id];
                 if (item) {
-                    // --- 關鍵修改：除了髮型，其他全部統一叫 '衣物配件' ---
                     let label = "衣物配件"; 
                     if (slot.category === 'hairstyle') label = "髮型參考";
                     
@@ -147,25 +145,32 @@
                     clothIndex++;
                 }
             });
+
+            // =================================================================
+            // [新增策略]：臉部重注 (Face Reinforcement)
+            // 在所有衣服都放完後，再放一次使用者照片，強迫 AI 回想長相
+            // =================================================================
+            promptText += ` 第 ${clothIndex} 張圖片是'臉部五官特寫參考' (Face Identity Reference)。`;
+            imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
+            // =================================================================
             
-            // 3. 回歸您原本的結尾指令 (包含 [重要指令] 那段)
             promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。";
             
-            // 加入原本的強硬指令 (根據您的要求保留原本的語氣)
-            promptText += " [重要指令]：1. 請將背景替換為'純白色攝影棚背景'。 2. 模特兒請呈現'正面全身'。";
-            promptText += " 3. 表情：請讓模特兒'面帶微笑但不露齒'。";
-            
-            // 簡單的補強 (僅針對特寫模式稍微調整，不改變全身模式的原本語氣)
+            promptText += " [重要指令]：";
+            // 這裡的指令要配合最後一張圖
+            promptText += " 1. 【極度重要】：臉部五官必須與第 1 張及最後一張圖片完全一致 (Identity Preservation)，不可改變長相。";
+            promptText += " 2. 請將背景替換為'純白色攝影棚背景'。"; 
+            promptText += " 3. 模特兒請呈現'正面全身'。";
+            promptText += " 4. 表情：請讓模特兒'面帶柔和微笑但不露齒'。";
+
             if (focusMode === 'face') {
                 promptText += " (注意：請改為生成'半身特寫'，重點在臉部)";
             }
             
-            // 自訂模式的簡單補充
             if (mode === 'custom' && customPrompt) {
                  promptText += ` (背景場景改為：${customPrompt})`;
             }
 
-            // 呼叫 debug
             if (onDebugPrompt) {
                 onDebugPrompt(promptText);
             }
@@ -179,9 +184,6 @@
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: promptText }, ...imageParts] }],
                             generationConfig: { responseModalities: ["IMAGE"], temperature: 0.4 },
-                            // ============================================================
-                            // [新增] 強制放寬安全設定，解決無故拒絕生成的問題
-                            // ============================================================
                             safetySettings: [
                                 { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
                                 { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
@@ -1204,5 +1206,6 @@
     </script>
 </body>
 </html>
+
 
 
