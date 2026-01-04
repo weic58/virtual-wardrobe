@@ -10,7 +10,6 @@
     <!-- 網頁圖示 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧥</text></svg>">
     
-    <!-- 1. Title 改為中文 -->
     <title>虛擬試穿衣櫥</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,7 +35,6 @@
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        /* 手機版優化：防止 iOS 點擊高亮 */
         * { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
@@ -58,12 +56,14 @@
         appId: "1:96273892644:web:3008f7f604c57669f35fb1"
         };
 
+        // --- 更新分類結構：新增 outerwear ---
         const CLOTH_CATEGORIES = {
-            upper: { label: '上身', types: ['長袖', '短袖', '背心', '外套', '其他'] },
-            lower: { label: '下身', types: ['長褲', '短褲', '裙子', '其他'] },
+            upper: { label: '上身', types: ['T恤', '襯衫', '背心', '毛衣', '其他'] },
+            outerwear: { label: '外套', types: ['夾克', '大衣', '西裝外套', '針織衫', '風衣', '其他'] },
+            lower: { label: '下身', types: ['牛仔褲', '休閒褲', '短褲', '裙子', '其他'] },
             shoes: { label: '鞋子', types: ['運動鞋', '皮鞋', '涼鞋', '靴子', '高跟鞋', '其他'] },
             accessory: { label: '配件', types: ['項鍊', '手飾', '皮帶', '領帶', '帽子', '包包', '其他'] },
-            hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '其他'] }
+            hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '馬尾', '其他'] }
         };
 
         const DEFAULT_BRANDS = ['Uniqlo', 'GU', 'MUJI', '50%', 'Nike', 'Adidas', 'Zara', 'H&M'];
@@ -93,6 +93,7 @@
         // --- Icons ---
         const Icons = {
             Shirt: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>,
+            Jacket: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5"/><path d="M4 15V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11"/><path d="M9 15v7"/><path d="M15 15v7"/></svg>,
             Grid: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>,
             List: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
             User: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
@@ -125,31 +126,87 @@
 
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full') => {
             if (!apiKey) throw new Error("請在設定中輸入 API Key");
-            let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
+            
+            // --- 核心邏輯修改：臉部鎖定與多層次穿搭 Prompt ---
+            
+            let promptText = "";
+            
+            // 1. 臉部鎖定權重 (Face ID)
+            promptText += "(best quality, photorealistic:1.3), (identical facial features to reference image:1.4), detailed face, high detail skin texture, full body shot. ";
+            promptText += "This is a virtual try-on task. The first image is the 'User Model'. ";
+
             const imageParts = [];
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
-            if (selectedItems.hairstyle) { promptText += ` 第 ${clothIndex} 張圖片是'髮型參考'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.hairstyle.src.split(',')[1] } }); clothIndex++; }
-            if (selectedItems.upper) { promptText += ` 第 ${clothIndex} 張圖片是'上身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } }); clothIndex++; }
-            if (selectedItems.lower) { promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); clothIndex++; }
-            if (selectedItems.accessory) { promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); clothIndex++; }
-            if (selectedItems.shoes) { promptText += ` 第 ${clothIndex} 張圖片是'鞋子'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.shoes.src.split(',')[1] } }); clothIndex++; }
             
-            promptText += " 請生成一張高品質、寫實的照片。";
+            // 2. 收集參考圖
+            if (selectedItems.hairstyle) { 
+                promptText += ` Image ${clothIndex} is 'Hairstyle Reference'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.hairstyle.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
+            if (selectedItems.upper) { 
+                promptText += ` Image ${clothIndex} is 'Inner Top'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
+            if (selectedItems.outerwear) { 
+                promptText += ` Image ${clothIndex} is 'Outer Jacket/Coat'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.outerwear.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
+            if (selectedItems.lower) { 
+                promptText += ` Image ${clothIndex} is 'Bottoms'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
+            if (selectedItems.accessory) { 
+                promptText += ` Image ${clothIndex} is 'Accessory'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
+            if (selectedItems.shoes) { 
+                promptText += ` Image ${clothIndex} is 'Shoes'.`; 
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.shoes.src.split(',')[1] } }); 
+                clothIndex++; 
+            }
             
+            promptText += " Please generate a high-quality, photorealistic photo. ";
+
+            // 3. 多層次穿搭邏輯 (Layering Logic)
+            let outfitDesc = "";
+            const innerName = selectedItems.upper ? selectedItems.upper.name : null;
+            const outerName = selectedItems.outerwear ? selectedItems.outerwear.name : null;
+
+            if (innerName && outerName) {
+                // 關鍵：如果同時有內搭和外套，指定 "under an open jacket"
+                outfitDesc += ` The model is wearing (${innerName}:1.2) under an open (${outerName}:1.1).`;
+            } else if (innerName) {
+                outfitDesc += ` The model is wearing ${innerName}.`;
+            } else if (outerName) {
+                outfitDesc += ` The model is wearing ${outerName}.`;
+            }
+
+            if (selectedItems.lower) outfitDesc += ` Wearing ${selectedItems.lower.name} on bottom.`;
+            if (selectedItems.shoes) outfitDesc += ` Wearing ${selectedItems.shoes.name} on feet.`;
+            if (selectedItems.accessory) outfitDesc += ` Accessorized with ${selectedItems.accessory.name}.`;
+
+            promptText += outfitDesc;
+            
+            // 4. 模式與細節
             if (focusMode === 'face') {
-                promptText += " [重點指令 - 特寫模式]：請生成一張【半身或頭像特寫】，重點在於展示【臉部特徵】與【新髮型】(如果有的話)。忽略下半身穿著。";
+                promptText += " [Focus Mode]: Generate a close-up or half-body shot focusing on the FACE and HAIRSTYLE. Ignore lower body details.";
             } else {
-                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配，包含鞋子。";
+                promptText += " [Full Body Mode]: Generate a FULL BODY shot showing the complete outfit including shoes.";
             }
 
             if (mode === 'studio') {
-                promptText += " 1. 背景：純白色攝影棚背景。 2. 光影：專業棚拍打光。 3. 姿勢：正面展示。 4. 表情：不露齒微笑。";
+                promptText += " Background: Clean white studio background. Lighting: Professional studio lighting. Pose: Front facing. Expression: Soft smile.";
             } else if (mode === 'minimal') {
-                promptText += " 1. 嚴格保留原圖背景與構圖。 2. 不要改變模特兒姿勢。 3. 最優先保留臉部特徵。 4. 表情：不露齒微笑。";
+                promptText += " Preserve the original background and pose as much as possible. Prioritize face identity.";
             } else if (mode === 'custom') {
-                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 確保臉部清晰。 3. 表情：不露齒微笑。`;
+                promptText += ` Scene: ${customPrompt || "Natural setting"}. Ensure clear face.`;
             }
 
             try {
@@ -302,7 +359,8 @@
             );
         };
 
-        const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData, userTags, onAddTag, onDeleteTag, userBrands, onAddBrand }) => {
+        // --- Modified UploadEditorModal ---
+        const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData, userTags, onAddTag, onDeleteTag, userBrands, onAddBrand, defaultCategory }) => {
             if (!isOpen) return null;
             const [name, setName] = useState('');
             const [category, setCategory] = useState('upper');
@@ -314,6 +372,17 @@
             const [previewUrl, setPreviewUrl] = useState('');
 
             const availableBrands = [...DEFAULT_BRANDS, ...(userBrands || []), '自訂'];
+
+            // 核心功能：當開啟上傳時，自動根據目前頁籤 (defaultCategory) 設定分類
+            useEffect(() => {
+                if (isOpen && !isEdit && defaultCategory && defaultCategory !== 'all') {
+                    if (CLOTH_CATEGORIES[defaultCategory]) {
+                        setCategory(defaultCategory);
+                        // 自動切換該分類的第一個子項目 (types)
+                        setSubCategory(CLOTH_CATEGORIES[defaultCategory].types[0] || '其他');
+                    }
+                }
+            }, [isOpen, defaultCategory, isEdit]);
 
             useEffect(() => {
                 if (isEdit && initialData) {
@@ -335,7 +404,10 @@
             }, [file, isEdit, initialData, userBrands]);
 
             useEffect(() => {
-                if (!isEdit) { setSubCategory(CLOTH_CATEGORIES[category]?.types[0] || '其他'); }
+                // 當切換分類時，自動重設子分類為該分類的第一項，避免子分類與主分類不匹配
+                if (!isEdit && category) { 
+                    setSubCategory(CLOTH_CATEGORIES[category]?.types[0] || '其他'); 
+                }
             }, [category]);
 
             const handleConfirm = () => {
@@ -559,7 +631,10 @@
             const [isSyncing, setIsSyncing] = useState(false);
             const [isFirebaseReady, setIsFirebaseReady] = useState(false);
             const [globalApiKey, setGlobalApiKey] = useState(''); 
-            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null, shoes: null }); 
+            
+            // --- 更新狀態：增加 outerwear 支援多層次 ---
+            const [selectedItems, setSelectedItems] = useState({ upper: null, outerwear: null, lower: null, accessory: null, hairstyle: null, shoes: null }); 
+            
             const [selectedUser, setSelectedUser] = useState(null);
             
             const [viewCategory, setViewCategory] = useState('all'); 
@@ -587,7 +662,7 @@
             const fileInputRefUser = useRef(null);
 
             useEffect(() => {
-                if (viewCategory !== 'all') setUploadCategory(viewCategory);
+                // 當切換瀏覽分類時，同步更新上傳預設分類 (但這裡不再直接 setUploadCategory，改由 Modal 內部處理)
                 setViewSubCategory('all'); setViewBrand('all'); setViewTag('all');   
             }, [viewCategory]);
 
@@ -782,6 +857,7 @@
                 const itemsUsed = { 
                     user: selectedUser ? { id: selectedUser.id, src: selectedUser.src, name: selectedUser.name } : null,
                     upper: prepareItemData(selectedItems.upper), 
+                    outerwear: prepareItemData(selectedItems.outerwear),
                     lower: prepareItemData(selectedItems.lower), 
                     accessory: prepareItemData(selectedItems.accessory),
                     hairstyle: prepareItemData(selectedItems.hairstyle),
@@ -862,7 +938,7 @@
             };
             
             const handleDownload = (url, name) => { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; case 'shoes': return { text: '鞋子', icon: <Icons.Shoes /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
+            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'outerwear': return { text: '外套', icon: <Icons.Jacket /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; case 'shoes': return { text: '鞋子', icon: <Icons.Shoes /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
             const handleImageError = (e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x600/e2e8f0/94a3b8?text=Image+Error"; };
             const handleRenameModel = async (id, currentName) => { const newName = prompt("編輯名稱:", currentName); if (newName && newName !== currentName) { if (isFirebaseReady && user) { try { const db = window.Firebase.getFirestore(); await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'models', id), { name: newName }); } catch (err) { alert("失敗"); } } else { setUsers(users.map(u => u.id === id ? { ...u, name: newName } : u)); } } };
             const getLatestItemInfo = (snapshotItem, type) => { if (!snapshotItem) return null; if (type === 'user') { const current = users.find(u => u.id === snapshotItem.id); return current ? { ...current, src: snapshotItem.src } : snapshotItem; } else { const current = clothes.find(c => c.id === snapshotItem.id); return current ? { ...current, src: snapshotItem.src } : snapshotItem; } };
@@ -896,7 +972,7 @@
             
             const LookListViewItem = ({ look }) => {
                  const hairstyle = getLatestItemInfo(look.items?.hairstyle, 'cloth');
-                 const clothingItems = [getLatestItemInfo(look.items?.upper, 'cloth'), getLatestItemInfo(look.items?.lower, 'cloth'), getLatestItemInfo(look.items?.shoes, 'cloth'), getLatestItemInfo(look.items?.accessory, 'cloth')].filter(Boolean);
+                 const clothingItems = [getLatestItemInfo(look.items?.upper, 'cloth'), getLatestItemInfo(look.items?.outerwear, 'cloth'), getLatestItemInfo(look.items?.lower, 'cloth'), getLatestItemInfo(look.items?.shoes, 'cloth'), getLatestItemInfo(look.items?.accessory, 'cloth')].filter(Boolean);
                  return (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row gap-4">
                         <div className="relative w-full md:w-32 aspect-[3/4] md:aspect-square flex-shrink-0 cursor-pointer" onClick={() => setSelectedLook(look)}><img src={look.src} className="w-full h-full object-cover rounded-lg" onError={handleImageError} /></div>
@@ -924,7 +1000,7 @@
                             <div className="animate-fade-in">
                                 <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
                                     <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-[70%] md:max-w-none scrollbar-hide">
-                                        {['all', 'upper', 'lower', 'shoes', 'accessory', 'hairstyle'].map(type => (
+                                        {['all', 'upper', 'outerwear', 'lower', 'shoes', 'accessory', 'hairstyle'].map(type => (
                                             <button key={type} onClick={() => setViewCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${viewCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>{CLOTH_CATEGORIES[type]?.label || '全部'}</button>
                                         ))}
                                     </div>
@@ -976,12 +1052,29 @@
 
                         {activeTab === 'user' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">模特兒管理</h2><div className="flex gap-2"><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button><button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800"><div className="w-4 h-4"><Icons.Camera /></div> 上傳照片</button><input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'user')} /></div></div>{viewMode === 'grid' ? (<div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-10">{users.map((item) => (<div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"><img src={item.src} onError={handleImageError} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white text-xs font-bold">{item.name || "我"}</div><div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleRenameModel(item.id, item.name)} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button><button onClick={() => handleDelete(item.id, 'user')} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button></div></div>))}</div>) : (<div className="flex flex-col gap-3 pb-10">{users.map(item => (<ListViewItem key={item.id} item={item} type="user" onDelete={handleDelete} onEdit={() => handleRenameModel(item.id, item.name)} />))}</div>)}</div>)}
                         
-                        {activeTab === 'studio' && (<div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10"><div className="flex flex-col lg:flex-row gap-8 justify-center items-start"><div className="w-full lg:w-1/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3><div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div></div><div className="w-full lg:w-2/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4">{['hairstyle', 'upper', 'lower', 'shoes', 'accessory'].map(slot => (<div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>{selectedItems[slot] ? (<div className="relative w-full h-full p-2"><img src={selectedItems[slot].src} className="w-full h-full object-contain" /><button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button><span className="absolute bottom-1 left-0 right-0 text-[10px] text-center text-purple-700 font-bold bg-white/80">{selectedItems[slot].name || getCategoryLabel(slot).text}</span></div>) : (<><div className="w-6 h-6 text-gray-300 mb-1">{getCategoryLabel(slot).icon}</div><span className="text-xs text-gray-400">{getCategoryLabel(slot).text}</span></>)}</div>))}</div></div></div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-4"><div className="flex bg-white p-1 rounded-lg border border-gray-200"><button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Body /></div> 全身服飾</button><button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫</button></div><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}<p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p></div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
+                        {activeTab === 'studio' && (<div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10"><div className="flex flex-col lg:flex-row gap-8 justify-center items-start"><div className="w-full lg:w-1/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3><div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div></div><div className="w-full lg:w-2/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3><div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {['hairstyle', 'upper', 'outerwear', 'lower', 'shoes', 'accessory'].map(slot => (
+                                <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>
+                                    {selectedItems[slot] ? (
+                                        <div className="relative w-full h-full p-2">
+                                            <img src={selectedItems[slot].src} className="w-full h-full object-contain" />
+                                            <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button>
+                                            <span className="absolute bottom-1 left-0 right-0 text-[10px] text-center text-purple-700 font-bold bg-white/80">{selectedItems[slot].name || getCategoryLabel(slot).text}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="w-6 h-6 text-gray-300 mb-1">{getCategoryLabel(slot).icon}</div>
+                                            <span className="text-xs text-gray-400">{getCategoryLabel(slot).text}</span>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div></div></div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-4"><div className="flex bg-white p-1 rounded-lg border border-gray-200"><button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Body /></div> 全身服飾</button><button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫</button></div><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}<p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p></div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
                         {activeTab === 'lookbook' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">穿搭日誌</h2><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button></div>{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : (viewMode === 'grid' ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div> : <div className="flex flex-col gap-4 pb-10">{looks.map(look => <LookListViewItem key={look.id} look={look} />)}</div>)}</div>)}
                         {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{getCategoryLabel(currentSelectionSlot).text}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">{clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2"><p>沒有這個分類的物品</p><button onClick={() => { setIsSelectorOpen(false); setIsUploadModalOpen(true); }} className="text-purple-600 font-bold">去新增</button></div> : <div className="grid grid-cols-3 gap-3">{clothes.filter(c => c.category === currentSelectionSlot).map(item => (<div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 overflow-hidden shadow-sm relative"><img src={item.src} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 truncate">{item.name}</div></div>))}</div>}</div></div></div>)}
                         
                         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} genStats={genStats} onRedeem={handleRedeem} userBrands={userBrands} onDeleteBrand={handleDeleteUserBrand} userTags={userTags} onDeleteTag={handleDeleteUserTag} />}
-                        {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} userTags={userTags} onAddTag={handleAddUserTag} onDeleteTag={handleDeleteUserTag} userBrands={userBrands} onAddBrand={handleAddUserBrand} />}
+                        {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} userTags={userTags} onAddTag={handleAddUserTag} onDeleteTag={handleDeleteUserTag} userBrands={userBrands} onAddBrand={handleAddUserBrand} defaultCategory={viewCategory} />}
                         {selectedLook && <LookDetailsModal isOpen={!!selectedLook} onClose={() => setSelectedLook(null)} look={selectedLook} lookName={selectedLook.name} onRename={handleRenameLook} />}
                     </main>
                     <footer className="py-6 text-center text-gray-400 text-xs">Created by weic58 and Google Gemini, 2026</footer>
@@ -994,4 +1087,3 @@
     </script>
 </body>
 </html>
-
