@@ -35,7 +35,6 @@
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        /* 手機版優化：防止 iOS 點擊高亮 */
         * { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
@@ -127,79 +126,49 @@
         const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full', activeSlots = []) => {
             if (!apiKey) throw new Error("請在設定中輸入 API Key");
             
-            // 1. 基礎設定與權重 (中文 Prompt)
-            let promptText = "這是一個虛擬試穿任務。第一張圖片是'模特兒 (User)'。";
-            promptText += "(最高品質, 真實感:1.3), (嚴格保留模特兒臉部特徵:1.5), (保留髮型:1.2), (保留衣物細節與圖案:1.4), 全身照。";
+            // --- 核心修改：恢復指定的 Prompt 寫法，但改為支援 activeSlots 迴圈 ---
+            
+            let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
+            // [新增] 這裡插入強力臉部權重，解決變回外國人問題
+            promptText += " 請完全以使用者的臉部特徵作為試穿人物，(嚴格保留臉部特徵:1.5), (Same Face:1.5). "; 
 
             const imageParts = [];
-            // 放入使用者圖片 (Index 0)
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
-            let imgIndex = 1; // 從第二張圖開始是衣物
+            let clothIndex = 2;
 
-            // 2. 動態加入參考圖 (根據目前的 activeSlots)
-            const descriptions = [];
-            
+            // 使用 activeSlots 迴圈來支援多件單品，但保持您要求的句型結構
             activeSlots.forEach(slot => {
                 const item = selectedItems[slot.id];
                 if (item) {
-                    // 轉換分類名稱為中文描述
-                    let typeDesc = "衣物";
-                    if (slot.category === 'upper') typeDesc = "上身衣物 (Top)";
-                    if (slot.category === 'outerwear') typeDesc = "外套 (Outerwear)";
-                    if (slot.category === 'lower') typeDesc = "下身衣物 (Bottoms)";
-                    if (slot.category === 'shoes') typeDesc = "鞋子 (Shoes)";
-                    if (slot.category === 'accessory') typeDesc = "配件 (Accessory)";
-                    if (slot.category === 'hairstyle') typeDesc = "髮型參考 (Hairstyle)";
-
-                    promptText += ` 第 ${imgIndex + 1} 張圖片是 '${typeDesc}'。`;
-                    imageParts.push({ inlineData: { mimeType: "image/jpeg", data: item.src.split(',')[1] } });
+                    let label = "衣物";
+                    if (slot.category === 'hairstyle') label = "髮型參考";
+                    else if (slot.category === 'upper') label = "上身衣物";
+                    else if (slot.category === 'lower') label = "下身衣物";
+                    else if (slot.category === 'accessory') label = "時尚配件";
+                    else if (slot.category === 'shoes') label = "鞋子";
+                    else if (slot.category === 'outerwear') label = "外套";
                     
-                    // 收集穿搭描述供後續組句
-                    descriptions.push({ type: slot.category, name: item.name });
-                    imgIndex++;
+                    promptText += ` 第 ${clothIndex} 張圖片是'${label}'。`;
+                    imageParts.push({ inlineData: { mimeType: "image/jpeg", data: item.src.split(',')[1] } });
+                    clothIndex++;
                 }
             });
             
             promptText += " 請生成一張高品質、寫實的照片。";
-
-            // 3. 穿搭邏輯描述 (中文)
-            let outfitDesc = " 模特兒穿著：";
             
-            const uppers = descriptions.filter(d => d.type === 'upper').map(d => d.name).join(" 與 ");
-            const outers = descriptions.filter(d => d.type === 'outerwear').map(d => d.name).join(" 與 ");
-            const lowers = descriptions.filter(d => d.type === 'lower').map(d => d.name).join(" 與 ");
-            
-            if (uppers && outers) {
-                outfitDesc += `上身穿著 (${uppers}) 在內，並搭配 (${outers}) 在外 (外套敞開)。`;
-            } else {
-                if (uppers) outfitDesc += `上身穿著 ${uppers}。`;
-                if (outers) outfitDesc += `外搭 ${outers}。`;
-            }
-
-            if (lowers) outfitDesc += ` 下身穿著 ${lowers}。`;
-            
-            const shoes = descriptions.filter(d => d.type === 'shoes').map(d => d.name).join(", ");
-            if (shoes) outfitDesc += ` 腳穿 ${shoes}。`;
-
-            const accs = descriptions.filter(d => d.type === 'accessory').map(d => d.name).join(", ");
-            if (accs) outfitDesc += ` 配戴著 ${accs}。`;
-
-            promptText += outfitDesc;
-            
-            // 4. 模式與細節 (中文)
             if (focusMode === 'face') {
-                promptText += " [特寫模式]：請生成半身或大頭照，重點在於完美的臉部融合與髮型，忽略下半身。";
+                promptText += " [重點指令 - 特寫模式]：請生成一張【半身或頭像特寫】，重點在於展示【臉部特徵】與【新髮型】(如果有的話)。忽略下半身穿著。";
             } else {
-                promptText += " [全身模式]：請生成全身照，完整展示所有穿搭與鞋子。";
+                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配，包含鞋子。";
             }
 
             if (mode === 'studio') {
-                promptText += " 背景：乾淨的白色攝影棚背景。光線：專業棚拍打光。姿勢：正面展示。表情：微笑道不露齒。";
+                promptText += " 1. 背景：純白色攝影棚背景。 2. 光影：專業棚拍打光。 3. 姿勢：正面展示。";
             } else if (mode === 'minimal') {
-                promptText += " 背景：盡量保留原圖背景。姿勢：保留原圖姿勢。最優先保留臉部與身形。";
+                promptText += " 1. 嚴格保留原圖背景與構圖。 2. 不要改變模特兒姿勢。 3. 最優先保留臉部特徵。";
             } else if (mode === 'custom') {
-                promptText += ` 場景：${customPrompt || "自然街拍風格"}。確保臉部清晰。`;
+                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 確保臉部清晰。`;
             }
 
             try {
@@ -690,14 +659,31 @@
                     }
                 });
 
+                // --- 額度統計與每日歸零邏輯 ---
                 const statsRef = window.Firebase.doc(db, 'users', user.uid, 'settings', 'stats');
                 const unsubStats = window.Firebase.onSnapshot(statsRef, (docSnap) => {
                     if (docSnap.exists()) {
-                        setGenStats({ count: docSnap.data().count || 0, limit: docSnap.data().limit || 1 });
+                        const data = docSnap.data();
+                        const today = new Date().toLocaleDateString('zh-TW'); // 取得今日日期字串
+                        
+                        // 檢查日期是否不同，如果不同則重置
+                        if (data.lastReset !== today) {
+                             // 修改：每天重置時，將 count 歸零，並且將 limit (額度) 也強制歸零
+                             window.Firebase.setDoc(statsRef, { count: 0, limit: 0, lastReset: today }, { merge: true });
+                        } 
+                        
+                        setGenStats({ 
+                            // 如果日期是今天，使用 count，否則視為 0 (等待上面 setDoc 生效)
+                            count: (data.lastReset === today) ? (data.count || 0) : 0, 
+                            // 修改：原本 || 1 會導致 0 變成 1。改成允許 0。
+                            limit: (data.limit !== undefined) ? data.limit : 0 
+                        });
                     } else {
-                        const defaultLimit = 0; //user.isAnonymous ? 1 : 5;
-                        window.Firebase.setDoc(statsRef, { count: 0, limit: defaultLimit }, { merge: true });
-                        setGenStats({ count: 0, limit: defaultLimit });
+                        // 初始化
+                        const today = new Date().toLocaleDateString('zh-TW');
+                        // 修改：初始額度設為 0
+                        window.Firebase.setDoc(statsRef, { count: 0, limit: 0, lastReset: today }, { merge: true });
+                        setGenStats({ count: 0, limit: 0 });
                     }
                 });
 
@@ -844,16 +830,18 @@
                     if (!item) return null;
                     return { id: item.id, src: item.src, name: item.name };
                 };
-
+                
+                // 動態收集所有使用到的 items
                 const itemsUsed = { 
                     user: selectedUser ? { id: selectedUser.id, src: selectedUser.src, name: selectedUser.name } : null,
-                    upper: prepareItemData(selectedItems.upper), 
-                    outerwear: prepareItemData(selectedItems.outerwear),
-                    lower: prepareItemData(selectedItems.lower), 
-                    accessory: prepareItemData(selectedItems.accessory),
-                    hairstyle: prepareItemData(selectedItems.hairstyle),
-                    shoes: prepareItemData(selectedItems.shoes) 
                 };
+                
+                // 遍歷 tryOnSlots 來保存所有選中的單品
+                tryOnSlots.forEach(slot => {
+                    if (selectedItems[slot.id]) {
+                        itemsUsed[slot.id] = prepareItemData(selectedItems[slot.id]);
+                    }
+                });
 
                 const lookData = { 
                     name: lookName,
@@ -992,7 +980,12 @@
             
             const LookListViewItem = ({ look }) => {
                  const hairstyle = getLatestItemInfo(look.items?.hairstyle, 'cloth');
-                 const clothingItems = [getLatestItemInfo(look.items?.upper, 'cloth'), getLatestItemInfo(look.items?.outerwear, 'cloth'), getLatestItemInfo(look.items?.lower, 'cloth'), getLatestItemInfo(look.items?.shoes, 'cloth'), getLatestItemInfo(look.items?.accessory, 'cloth')].filter(Boolean);
+                 // 動態取得所有穿搭項目
+                 const clothingItems = Object.keys(look.items || {})
+                     .filter(key => key !== 'user' && key !== 'hairstyle')
+                     .map(key => getLatestItemInfo(look.items[key], 'cloth'))
+                     .filter(Boolean);
+
                  return (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row gap-4">
                         <div className="relative w-full md:w-32 aspect-[3/4] md:aspect-square flex-shrink-0 cursor-pointer" onClick={() => setSelectedLook(look)}><img src={look.src} className="w-full h-full object-cover rounded-lg" onError={handleImageError} /></div>
