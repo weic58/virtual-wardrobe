@@ -177,10 +177,20 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: promptText }, ...imageParts] }],
-                            generationConfig: { responseModalities: ["IMAGE"], temperature: 0.4 }
+                            generationConfig: { responseModalities: ["IMAGE"], temperature: 0.4 },
+                            // ============================================================
+                            // [新增] 強制放寬安全設定，解決無故拒絕生成的問題
+                            // ============================================================
+                            safetySettings: [
+                                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+                                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+                                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+                                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+                            ]
                         }),
                     }
                 );
+                
                 const data = await response.json();
                 
                 if (data.error) throw new Error(`API Error: ${data.error.message}`);
@@ -1193,3 +1203,4 @@
     </script>
 </body>
 </html>
+
