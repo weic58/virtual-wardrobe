@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StyleMate AI 衣櫥</title>
+    
+    <!-- 1. 引入 Tailwind CSS (美化介面) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. 引入 React 和 Babel (讓瀏覽器看懂程式碼) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 3. 引入圖示庫 Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* 自定義動畫 */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        .animate-slide-up { animation: slideUp 0.5s ease-out; }
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-800 font-sans">
+    
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 設定區 ---
+        // 請在這裡填入您的 Google API Key
+        const API_KEY = ""; 
+
+        const { useState, useRef, useEffect } = React;
+
+        // 簡單的圖示元件 (因為 CDN 使用 Lucide 需要一點轉換)
+        const Icon = ({ name, size = 24, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // --- API 呼叫邏輯 ---
+        const generateTryOnImage = async (userImage, selectedItems, apiKey) => {
+            if (!apiKey) {
+                return new Promise((resolve) => setTimeout(() => resolve(null), 2000));
+            }
+
+            let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
+            const imageParts = [];
+
+            imageParts.push({
+                inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] }
+            });
+
+            let clothIndex = 2;
+            if (selectedItems.upper) {
+                promptText += ` 第 ${clothIndex} 張圖片是'上身衣物'。`;
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } });
+                clothIndex++;
+            }
+            if (selectedItems.lower) {
+                promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`;
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } });
+                clothIndex++;
+            }
+            if (selectedItems.accessory) {
+                promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`;
+                imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } });
+                clothIndex++;
+            }
+
+            promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。重要規則：1. 保持使用者的臉部特徵、身體姿勢和背景與原圖盡可能一致。 2. 對於沒有提供新衣物的部位，請保留使用者原圖中的穿著。 3. 確保衣物自然貼合身體，光影逼真。";
+
+            try {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: promptText }, ...imageParts] }],
+                            generationConfig: { responseModalities: ["IMAGE"], temperature: 0.4 }
+                        }),
+                    }
+                );
+                const data = await response.json();
+                if (data.candidates?.[0]?.content?.parts) {
+                    const imagePart = data.candidates[0].content.parts.find(p => p.inlineData);
+                    if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
+                }
+                throw new Error("無法生成圖片，請檢查 API Key 或稍後再試");
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                throw error;
+            }
+        };
+
+        // --- 主程式元件 ---
+        const StyleMate = () => {
+            const [activeTab, setActiveTab] = useState('wardrobe');
+            const [clothes, setClothes] = useState([
+                { id: 1, src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500", category: "upper", name: "白色 T-Shirt" },
+                { id: 2, src: "https://images.unsplash.com/photo-1551028919-383718bccf3b?w=500", category: "upper", name: "皮夾克" },
+                { id: 3, src: "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?w=500", category: "lower", name: "牛仔褲" },
+                { id: 4, src: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=500", category: "accessory", name: "手提包" }
+            ]);
+            const [users, setUsers] = useState([
+                { id: 1, src: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500", name: "預設模特 A" },
+                { id: 2, src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500", name: "預設模特 B" }
+            ]);
+            
+            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null });
+            const [selectedUser, setSelectedUser] = useState(null);
+            const [uploadCategory, setUploadCategory] = useState('upper');
+            const [generatedResult, setGeneratedResult] = useState(null);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [errorMsg, setErrorMsg] = useState('');
+            const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+            const [currentSelectionSlot, setCurrentSelectionSlot] = useState(null);
+
+            const fileInputRefCloth = useRef(null);
+            const fileInputRefUser = useRef(null);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            const handleUpload = (e, type) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        if (type === 'cloth') {
+                            setClothes([{ id: Date.now(), src: reader.result, category: uploadCategory, name: "新衣服" }, ...clothes]);
+                        } else {
+                            setUsers([{ id: Date.now(), src: reader.result, name: "我" }, ...users]);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleDeleteCloth = (id) => {
+                setClothes(clothes.filter(c => c.id !== id));
+                const newSelected = { ...selectedItems };
+                Object.keys(newSelected).forEach(key => {
+                    if (newSelected[key]?.id === id) newSelected[key] = null;
+                });
+                setSelectedItems(newSelected);
+            };
+
+            const handleDeleteUser = (id) => {
+                setUsers(users.filter(u => u.id !== id));
+                if (selectedUser?.id === id) setSelectedUser(null);
+            };
+
+            const handleGenerateClick = async () => {
+                const hasItem = selectedItems.upper || selectedItems.lower || selectedItems.accessory;
+                if (!selectedUser || !hasItem) return;
+                
+                setIsGenerating(true);
+                setGeneratedResult(null);
+                setErrorMsg('');
+
+                try {
+                    const result = await generateTryOnImage(selectedUser.src, selectedItems, API_KEY);
+                    if (result) setGeneratedResult(result);
+                    else setErrorMsg("請填寫正確的 API Key 才能生成圖片 (現在是演示模式)");
+                } catch (err) {
+                    setErrorMsg("連線錯誤，請稍後再試");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            const getCategoryLabel = (cat) => {
+                switch(cat) {
+                    case 'upper': return { text: '上身', icon: 'shirt' };
+                    case 'lower': return { text: '下身', icon: 'layout-grid' };
+                    case 'accessory': return { text: '配件', icon: 'watch' };
+                    default: return { text: '其他', icon: 'shirt' };
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-screen bg-gray-50">
+                    {/* Header */}
+                    <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-lg flex items-center justify-center text-white font-bold">S</div>
+                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">StyleMate</h1>
+                        </div>
+                    </header>
+
+                    {/* Content */}
+                    <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-5xl mx-auto w-full pb-24">
+                        
+                        {/* Tabs */}
+                        <div className="flex bg-white rounded-xl p-1 shadow-sm mb-6 sticky top-0 z-0">
+                            {[
+                                { id: 'wardrobe', icon: 'layout-grid', label: '衣櫥管理' },
+                                { id: 'user', icon: 'user', label: '模特兒' },
+                                { id: 'studio', icon: 'sparkles', label: '試穿' }
+                            ].map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === tab.id ? (tab.id === 'studio' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-purple-100 text-purple-700') : 'text-gray-500 hover:bg-gray-50'}`}
+                                >
+                                    <Icon name={tab.icon} size={18} /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Wardrobe View */}
+                        {activeTab === 'wardrobe' && (
+                            <div className="animate-fade-in">
+                                <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium">新增類別：</span>
+                                        <div className="flex bg-gray-100 rounded-lg p-1">
+                                            {['upper', 'lower', 'accessory'].map(type => (
+                                                <button key={type} onClick={() => setUploadCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${uploadCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}>
+                                                    {getCategoryLabel(type).text}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => fileInputRefCloth.current.click()} className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800">
+                                        <Icon name="upload" size={16} /> 上傳到 {getCategoryLabel(uploadCategory).text}
+                                    </button>
+                                    <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'cloth')} />
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {clothes.map((item) => (
+                                        <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                                            <img src={item.src} className="w-full h-full object-cover" />
+                                            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                                                <Icon name={getCategoryLabel(item.category).icon} size={12} /> {getCategoryLabel(item.category).text}
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteCloth(item.id); }} className="absolute top-2 right-2 bg-white text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Icon name="trash-2" size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* User View */}
+                        {activeTab === 'user' && (
+                            <div className="animate-fade-in">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-lg font-semibold">模特兒管理</h2>
+                                    <button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800">
+                                        <Icon name="camera" size={16} /> 上傳照片
+                                    </button>
+                                    <input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'user')} />
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {users.map((item) => (
+                                        <div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                                            <img src={item.src} className="w-full h-full object-cover" />
+                                            <button onClick={() => handleDeleteUser(item.id)} className="absolute top-2 right-2 bg-white text-red-500 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Icon name="trash-2" size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Studio View */}
+                        {activeTab === 'studio' && (
+                            <div className="animate-fade-in flex flex-col gap-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                    <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
+                                        <div className="w-full lg:w-1/3 flex flex-col gap-3">
+                                            <h3 className="text-sm font-bold text-gray-500 uppercase">Step 1: 模特兒</h3>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {users.map(u => (
+                                                    <div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}>
+                                                        <img src={u.src} className="w-full h-full object-cover" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="w-full lg:w-2/3 flex flex-col gap-3">
+                                            <h3 className="text-sm font-bold text-gray-500 uppercase">Step 2: 選擇服飾</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {['upper', 'lower', 'accessory'].map(slot => (
+                                                    <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-40 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                                                        {selectedItems[slot] ? (
+                                                            <div className="relative w-full h-full p-2">
+                                                                <img src={selectedItems[slot].src} className="w-full h-full object-contain" />
+                                                                <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><Icon name="x" size={12} /></button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <Icon name={getCategoryLabel(slot).icon} size={32} className="text-gray-300 mb-2" />
+                                                                <span className="text-sm text-gray-400">選擇{getCategoryLabel(slot).text}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-8 flex justify-center">
+                                        <button disabled={!selectedUser || (!selectedItems.upper && !selectedItems.lower && !selectedItems.accessory) || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl transition-all w-full md:w-auto flex items-center justify-center gap-2 ${(!selectedUser || (!selectedItems.upper && !selectedItems.lower && !selectedItems.accessory)) ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white hover:scale-105'}`}>
+                                            {isGenerating ? <><Icon name="loader-2" className="animate-spin" /> 處理中...</> : <><Icon name="sparkles" /> 生成試穿照</>}
+                                        </button>
+                                    </div>
+                                </div>
+                                {(generatedResult || errorMsg) && (
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-slide-up">
+                                        {errorMsg ? (
+                                            <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center text-sm">{errorMsg}</div>
+                                        ) : (
+                                            <div className="flex flex-col items-center">
+                                                <div className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
+                                                    <img src={generatedResult} className="w-full h-auto" />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Selector Modal */}
+                        {isSelectorOpen && (
+                            <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setIsSelectorOpen(false)}>
+                                <div className="bg-white w-full md:w-[600px] h-[70vh] rounded-t-2xl md:rounded-2xl flex flex-col shadow-2xl overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                                        <h3 className="font-bold text-lg flex items-center gap-2"><Icon name={getCategoryLabel(currentSelectionSlot).icon} /> 選擇{getCategoryLabel(currentSelectionSlot).text}</h3>
+                                        <button onClick={() => setIsSelectorOpen(false)} className="p-2 hover:bg-gray-200 rounded-full"><Icon name="x" size={20} /></button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {clothes.filter(c => c.category === currentSelectionSlot).map(item => (
+                                                <div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 hover:shadow-lg transition-all overflow-hidden">
+                                                    <img src={item.src} className="w-full h-full object-cover" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<StyleMate />);
+    </script>
+</body>
+</html>
