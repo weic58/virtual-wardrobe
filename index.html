@@ -8,9 +8,9 @@
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     
     <!-- 網頁圖示 -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👕</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧥</text></svg>">
     
-    <title>虛擬試穿衣櫥</title>
+    <title>Virtual Wardrobe</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -21,20 +21,18 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         window.Firebase = { 
             initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
             signInWithPopup, signInAnonymously, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile,
-            getFirestore, collection, addDoc, deleteDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp 
+            getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp 
         };
     </script>
 
     <style>
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-        .animate-slide-up { animation: slideUp 0.3s ease-out; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -45,10 +43,9 @@
 
     <script type="text/babel">
         // ==========================================
-        //  【請務必填寫這裡】
+        //  設定區
         // ==========================================
 
-        // 請到 Firebase Console -> 專案設定 -> 複製 sdk config
         const YOUR_FIREBASE_CONFIG = {
         apiKey: "AIzaSyDO31PRKXec6po5prR0CquPxiqRfubS9KQ",
         authDomain: "virtual-wardrobe-photos.firebaseapp.com",
@@ -57,6 +54,16 @@
         messagingSenderId: "96273892644",
         appId: "1:96273892644:web:3008f7f604c57669f35fb1"
         };
+
+        // --- 分類設定 ---
+        const CLOTH_CATEGORIES = {
+            upper: { label: '上身', types: ['長袖', '短袖', '背心', '外套', '其他'] },
+            lower: { label: '下身', types: ['長褲', '短褲', '裙子', '其他'] },
+            accessory: { label: '配件', types: ['項鍊', '手飾', '皮帶', '領帶', '帽子', '包包', '其他'] },
+            hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '其他'] }
+        };
+
+        const BRANDS = ['Uniqlo', 'GU', 'MUJI', 'Nike', 'Adidas', 'Zara', 'H&M', '自訂'];
 
         // ==========================================
 
@@ -100,34 +107,44 @@
             BookHeart: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M12 8c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2z"/><path d="M8 8h.01"/></svg>,
             Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
             SaveHeart: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
-            Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
             Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73v.18a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
             LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
             Shield: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
             Edit: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
             Google: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>,
-            Layer: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            Layer: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+            Scissors: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Body: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/></svg>,
+            Tag: () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
         };
 
-        const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '') => {
+        const generateTryOnImage = async (userImage, selectedItems, apiKey, mode = 'studio', customPrompt = '', focusMode = 'full') => {
             if (!apiKey) throw new Error("API Key 未設定，請至右上角設定中填寫");
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
             const imageParts = [];
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
+            if (selectedItems.hairstyle) { promptText += ` 第 ${clothIndex} 張圖片是'髮型參考'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.hairstyle.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.upper) { promptText += ` 第 ${clothIndex} 張圖片是'上身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.upper.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.lower) { promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.accessory) { promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); clothIndex++; }
             
-            promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。";
+            promptText += " 請生成一張高品質、寫實的照片。";
             
+            if (focusMode === 'face') {
+                promptText += " [重點指令 - 特寫模式]：請生成一張【半身或頭像特寫】，重點在於展示【臉部特徵】與【新髮型】(如果有的話)。忽略下半身穿著。";
+            } else {
+                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配。";
+            }
+
             if (mode === 'studio') {
-                promptText += " [重要指令 - 標準棚拍]： 1. 請將背景替換為'純白色攝影棚背景'。 2. 模特兒請呈現'正面全身'。 3. 請保留模特兒臉部特徵並稍微微笑。";
+                promptText += " 1. 背景：純白色攝影棚背景。 2. 光影：專業棚拍打光。 3. 姿勢：正面展示。";
             } else if (mode === 'minimal') {
-                promptText += " [重要指令 - 最小變化]： 1. 請【極力維持原圖的背景、光影與構圖】。 2. 請【不要改變模特兒的姿勢】。 3. 請【最優先保留模特兒的臉部與身體】，只替換衣物。";
+                promptText += " 1. 嚴格保留原圖背景與構圖。 2. 不要改變模特兒姿勢。 3. 最優先保留臉部特徵。";
             } else if (mode === 'custom') {
-                promptText += ` [重要指令 - 自訂修改]： 1. ${customPrompt || "維持自然風格"}。 2. 保留臉部特徵。 3. 確保衣物貼合。`;
+                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 確保臉部清晰。`;
             }
 
             try {
@@ -146,7 +163,7 @@
                 
                 if (data.error) throw new Error(`API Error: ${data.error.message}`);
                 const candidate = data.candidates?.[0];
-                if (candidate?.finishReason === 'SAFETY') throw new Error("⚠️ 圖片被安全系統攔截：請更換照片 (避免過多皮膚暴露或敏感姿勢)。");
+                if (candidate?.finishReason === 'SAFETY') throw new Error("⚠️ 圖片被安全系統攔截：請更換照片。");
                 if (candidate?.content?.parts) {
                     const imagePart = candidate.content.parts.find(p => p.inlineData);
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
@@ -222,6 +239,119 @@
             );
         };
 
+        // --- 上傳/編輯 彈出視窗 (新增) ---
+        const UploadEditorModal = ({ isOpen, onClose, file, onConfirm, isEdit, initialData }) => {
+            if (!isOpen) return null;
+
+            const [name, setName] = useState('');
+            const [category, setCategory] = useState('upper');
+            const [subCategory, setSubCategory] = useState('長袖');
+            const [brand, setBrand] = useState('Uniqlo');
+            const [customBrand, setCustomBrand] = useState('');
+            const [previewUrl, setPreviewUrl] = useState('');
+
+            // 初始化資料
+            useEffect(() => {
+                if (isEdit && initialData) {
+                    setName(initialData.name || '');
+                    setCategory(initialData.category || 'upper');
+                    setSubCategory(initialData.subCategory || (CLOTH_CATEGORIES[initialData.category || 'upper'].types[0]));
+                    const b = initialData.brand || 'Uniqlo';
+                    if (BRANDS.includes(b)) {
+                        setBrand(b);
+                    } else {
+                        setBrand('自訂');
+                        setCustomBrand(b);
+                    }
+                    setPreviewUrl(initialData.src);
+                } else if (file) {
+                    // 新增模式：從檔案名稱預設
+                    const defaultName = file.name.replace(/\.[^/.]+$/, "");
+                    setName(defaultName);
+                    // 預覽
+                    const reader = new FileReader();
+                    reader.onloadend = () => setPreviewUrl(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            }, [file, isEdit, initialData]);
+
+            // 當大分類改變時，重置細項分類
+            useEffect(() => {
+                if (!isEdit) { // 編輯模式下不自動重置，除非手動切換
+                     setSubCategory(CLOTH_CATEGORIES[category].types[0]);
+                }
+            }, [category]);
+
+            const handleConfirm = () => {
+                const finalBrand = brand === '自訂' ? customBrand : brand;
+                onConfirm({ 
+                    name, 
+                    category, 
+                    subCategory, 
+                    brand: finalBrand 
+                });
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-lg">{isEdit ? '編輯單品' : '新增單品'}</h3>
+                            <button onClick={onClose}><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            <div className="flex justify-center mb-4 bg-gray-100 rounded-lg p-2">
+                                {previewUrl && <img src={previewUrl} className="h-40 object-contain rounded-md" />}
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">名稱</label>
+                                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">分類</label>
+                                        <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
+                                            {Object.entries(CLOTH_CATEGORIES).map(([key, val]) => (
+                                                <option key={key} value={key}>{val.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">種類</label>
+                                        <select value={subCategory} onChange={e => setSubCategory(e.target.value)} className="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
+                                            {CLOTH_CATEGORIES[category].types.map(t => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">品牌</label>
+                                    <div className="flex gap-2">
+                                        <select value={brand} onChange={e => setBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none bg-white">
+                                            {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                        {brand === '自訂' && (
+                                            <input type="text" placeholder="輸入品牌" value={customBrand} onChange={e => setCustomBrand(e.target.value)} className="flex-1 p-2 border rounded-lg text-sm focus:ring-1 focus:ring-purple-500 outline-none" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
+                            <button onClick={onClose} className="px-4 py-2 text-gray-500 text-sm font-bold hover:bg-gray-200 rounded-lg">取消</button>
+                            <button onClick={handleConfirm} className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-700">儲存</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- 登入/註冊畫面 ---
         const AuthScreen = ({ isFirebaseReady }) => {
             const [isRegister, setIsRegister] = useState(false);
@@ -286,7 +416,7 @@
                     <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
                         <div className="flex justify-center mb-6"><div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">{loading ? <div className="animate-spin"><Icons.Loader /></div> : <Icons.User />}</div></div>
                         <h2 className="text-2xl font-bold text-center mb-2">Virtual Wardrobe</h2>
-                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的虛擬試穿衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
+                        <p className="text-slate-400 text-center mb-6 text-sm">{isFirebaseReady ? (isRegister ? "註冊新帳號" : "登入您的衣櫥") : <span className="text-orange-400">等待 Firebase 連線...</span>}</p>
                         
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {isRegister && <input type="text" placeholder="您的暱稱" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-purple-500 outline-none" required />}
@@ -319,12 +449,12 @@
             const [isSyncing, setIsSyncing] = useState(false);
             const [isFirebaseReady, setIsFirebaseReady] = useState(false);
             const [globalApiKey, setGlobalApiKey] = useState(''); 
-            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null });
+            const [selectedItems, setSelectedItems] = useState({ upper: null, lower: null, accessory: null, hairstyle: null });
             const [selectedUser, setSelectedUser] = useState(null);
             
-            // 新增：檢視分類 (viewCategory) 與 上傳分類 (uploadCategory) 分離
             const [viewCategory, setViewCategory] = useState('all'); 
-            const [uploadCategory, setUploadCategory] = useState('upper');
+            // 篩選細項: all 代表全部
+            const [viewSubCategory, setViewSubCategory] = useState('all');
 
             const [generatedResult, setGeneratedResult] = useState(null);
             const [isGenerating, setIsGenerating] = useState(false);
@@ -333,14 +463,19 @@
             const [currentSelectionSlot, setCurrentSelectionSlot] = useState(null);
             const [genMode, setGenMode] = useState('studio');
             const [customPromptText, setCustomPromptText] = useState('');
+            const [focusMode, setFocusMode] = useState('full');
+
+            // 上傳/編輯 相關狀態
+            const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+            const [uploadFile, setUploadFile] = useState(null); // 暫存上傳檔案
+            const [editingItem, setEditingItem] = useState(null); // 暫存編輯物件
+
             const fileInputRefCloth = useRef(null);
             const fileInputRefUser = useRef(null);
 
-            // 當檢視分類改變時，如果是特定分類，同步更新上傳分類；如果是全部，則保持原樣
+            // 當切換大分類時，重置細項篩選
             useEffect(() => {
-                if (viewCategory !== 'all') {
-                    setUploadCategory(viewCategory);
-                }
+                setViewSubCategory('all');
             }, [viewCategory]);
 
             useEffect(() => {
@@ -383,33 +518,106 @@
                 } catch (e) { console.error(e); alert("儲存失敗"); }
             };
 
-            const handleUpload = (e, type) => {
+            // 觸發上傳流程 (打開編輯器)
+            const handleFileSelect = (e, type) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const compressedBase64 = await compressImage(reader.result, 800, 0.6);
-                    if (isFirebaseReady && user) {
-                        try {
-                            const db = window.Firebase.getFirestore();
-                            const collectionName = type === 'cloth' ? 'clothes' : 'models';
-                            const newItem = { src: compressedBase64, name: type === 'cloth' ? "新衣服" : "我", createdAt: window.Firebase.serverTimestamp() };
-                            if (type === 'cloth') newItem.category = uploadCategory;
-                            await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, collectionName), newItem);
-                        } catch (err) { alert("上傳失敗: " + err.message); }
+                
+                if (type === 'user') {
+                    // 模特兒直接上傳 (為了簡化流程，模特兒通常只需命名)
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const compressedBase64 = await compressImage(reader.result, 800, 0.6);
+                        const defaultName = file.name.replace(/\.[^/.]+$/, "");
+                        // 直接呼叫上傳邏輯
+                        uploadToFirebase({ name: defaultName, src: compressedBase64 }, 'models');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // 衣服：打開編輯視窗
+                    setUploadFile(file);
+                    setEditingItem(null); // 清除編輯狀態
+                    setIsUploadModalOpen(true);
+                }
+            };
+
+            // 觸發編輯流程
+            const handleEditItem = (item) => {
+                setUploadFile(null); // 清除檔案狀態
+                setEditingItem(item);
+                setIsUploadModalOpen(true);
+            };
+
+            // 統一上傳/更新邏輯
+            const handleConfirmUpload = async (metadata) => {
+                let base64Src = editingItem?.src;
+
+                // 如果有新檔案，先壓縮
+                if (uploadFile) {
+                    const reader = new FileReader();
+                    const promise = new Promise(resolve => {
+                        reader.onloadend = () => resolve(reader.result);
+                    });
+                    reader.readAsDataURL(uploadFile);
+                    const rawBase64 = await promise;
+                    base64Src = await compressImage(rawBase64, 800, 0.6);
+                }
+
+                if (!base64Src) return;
+
+                const collectionName = 'clothes';
+                
+                if (isFirebaseReady && user) {
+                    try {
+                        const db = window.Firebase.getFirestore();
+                        if (editingItem) {
+                            // 更新現有
+                            await window.Firebase.updateDoc(
+                                window.Firebase.doc(db, 'users', user.uid, collectionName, editingItem.id),
+                                { ...metadata } // 只更新資料欄位
+                            );
+                        } else {
+                            // 新增
+                            await window.Firebase.addDoc(
+                                window.Firebase.collection(db, 'users', user.uid, collectionName),
+                                { ...metadata, src: base64Src, createdAt: window.Firebase.serverTimestamp() }
+                            );
+                        }
+                    } catch (err) { alert("操作失敗: " + err.message); }
+                } else {
+                    // 本地模式
+                    const newItem = { id: editingItem ? editingItem.id : Date.now(), src: base64Src, ...metadata };
+                    if (editingItem) {
+                        setClothes(clothes.map(c => c.id === newItem.id ? newItem : c));
                     } else {
-                        const newItem = { id: Date.now(), src: compressedBase64, name: "本地", category: uploadCategory };
-                        if (type === 'cloth') setClothes([newItem, ...clothes]); else setUsers([newItem, ...users]);
+                        setClothes([newItem, ...clothes]);
                     }
-                };
-                reader.readAsDataURL(file);
+                }
+            };
+
+            // 模特兒上傳專用
+            const uploadToFirebase = async (data, collectionName) => {
+                if (isFirebaseReady && user) {
+                    try {
+                        const db = window.Firebase.getFirestore();
+                        await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, collectionName), { ...data, createdAt: window.Firebase.serverTimestamp() });
+                    } catch (err) { alert("上傳失敗"); }
+                } else {
+                    setUsers([{ id: Date.now(), ...data }, ...users]);
+                }
             };
 
             const handleSaveLook = async () => {
                 if (!generatedResult) return;
                 let compressedResult = generatedResult;
                 try { compressedResult = await compressImage(generatedResult, 800, 0.6); } catch (e) {}
-                const itemsUsed = { user: { src: selectedUser.src ? await compressImage(selectedUser.src, 200, 0.5) : "" }, upper: selectedItems.upper ? { src: await compressImage(selectedItems.upper.src, 200, 0.5) } : null, lower: selectedItems.lower ? { src: await compressImage(selectedItems.lower.src, 200, 0.5) } : null, accessory: selectedItems.accessory ? { src: await compressImage(selectedItems.accessory.src, 200, 0.5) } : null };
+                const itemsUsed = { 
+                    user: { src: selectedUser.src ? await compressImage(selectedUser.src, 200, 0.5) : "" }, 
+                    upper: selectedItems.upper ? { src: await compressImage(selectedItems.upper.src, 200, 0.5) } : null, 
+                    lower: selectedItems.lower ? { src: await compressImage(selectedItems.lower.src, 200, 0.5) } : null, 
+                    accessory: selectedItems.accessory ? { src: await compressImage(selectedItems.accessory.src, 200, 0.5) } : null,
+                    hairstyle: selectedItems.hairstyle ? { src: await compressImage(selectedItems.hairstyle.src, 200, 0.5) } : null
+                };
                 const lookData = { src: compressedResult, items: itemsUsed, createdAt: isFirebaseReady ? window.Firebase.serverTimestamp() : new Date() };
                 if (isFirebaseReady && user) {
                     try {
@@ -445,14 +653,29 @@
                 if (!selectedUser) return;
                 setIsGenerating(true); setGeneratedResult(null); setErrorMsg('');
                 try {
-                    const result = await generateTryOnImage(selectedUser.src, selectedItems, globalApiKey, genMode, customPromptText);
+                    const result = await generateTryOnImage(selectedUser.src, selectedItems, globalApiKey, genMode, customPromptText, focusMode);
                     setGeneratedResult(result);
                 } catch (err) { setErrorMsg(err.message); } finally { setIsGenerating(false); }
             };
             
             const handleDownload = (url, name) => { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
+            const getCategoryLabel = (cat) => { switch(cat) { case 'all': return { text: '全部', icon: <Icons.Grid /> }; case 'upper': return { text: '上身', icon: <Icons.Shirt /> }; case 'lower': return { text: '下身', icon: <Icons.Layer /> }; case 'accessory': return { text: '配件', icon: <Icons.Watch /> }; case 'hairstyle': return { text: '髮型', icon: <Icons.Scissors /> }; default: return { text: '其他', icon: <Icons.Shirt /> }; }};
             const handleImageError = (e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x600/e2e8f0/94a3b8?text=Image+Error"; };
+
+            // 模特兒更名
+            const handleRenameModel = async (id, currentName) => {
+                const newName = prompt("編輯名稱:", currentName);
+                if (newName && newName !== currentName) {
+                    if (isFirebaseReady && user) {
+                        try {
+                            const db = window.Firebase.getFirestore();
+                            await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, 'models', id), { name: newName });
+                        } catch (err) { alert("更名失敗"); }
+                    } else {
+                        setUsers(users.map(u => u.id === id ? { ...u, name: newName } : u));
+                    }
+                }
+            };
 
             if (!user) return <AuthScreen isFirebaseReady={isFirebaseReady} />;
 
@@ -469,58 +692,132 @@
                             <div className="animate-fade-in">
                                 <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
                                     <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto max-w-full">
-                                        {['all', 'upper', 'lower', 'accessory'].map(type => (
+                                        {['all', 'upper', 'lower', 'accessory', 'hairstyle'].map(type => (
                                             <button key={type} onClick={() => setViewCategory(type)} className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${viewCategory === type ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>{getCategoryLabel(type).text}</button>
                                         ))}
                                     </div>
                                     
+                                    {/* 種類篩選器 */}
+                                    {viewCategory !== 'all' && (
+                                        <select value={viewSubCategory} onChange={e => setViewSubCategory(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none">
+                                            <option value="all">所有種類</option>
+                                            {CLOTH_CATEGORIES[viewCategory].types.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    )}
+
                                     <div className="flex items-center gap-2 w-full md:w-auto">
-                                        {viewCategory === 'all' ? (
-                                            <select 
-                                                value={uploadCategory} 
-                                                onChange={(e) => setUploadCategory(e.target.value)}
-                                                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 outline-none focus:ring-1 focus:ring-purple-500"
-                                            >
-                                                <option value="upper">上傳至: 上身</option>
-                                                <option value="lower">上傳至: 下身</option>
-                                                <option value="accessory">上傳至: 配件</option>
-                                            </select>
-                                        ) : (
-                                            <div className="px-3 py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg border border-purple-100 whitespace-nowrap">
-                                                上傳至: {getCategoryLabel(viewCategory).text}
-                                            </div>
-                                        )}
-                                        <button onClick={() => fileInputRefCloth.current.click()} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 上傳</button>
-                                        <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'cloth')} />
+                                        <button onClick={() => fileInputRefCloth.current.click()} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap transition-colors"><div className="w-4 h-4"><Icons.Upload /></div> 新增單品</button>
+                                        <input type="file" ref={fileInputRefCloth} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'cloth')} />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
-                                    {clothes.filter(item => viewCategory === 'all' || item.category === viewCategory).map((item) => (
+                                    {clothes.filter(item => {
+                                        const catMatch = viewCategory === 'all' || item.category === viewCategory;
+                                        const subMatch = viewSubCategory === 'all' || item.subCategory === viewSubCategory;
+                                        return catMatch && subMatch;
+                                    }).map((item) => (
                                         <div key={item.id} className="group relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all hover:shadow-md">
                                             <img src={item.src} onError={handleImageError} className="w-full h-full object-cover" />
-                                            <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md flex items-center gap-1">
-                                                <div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div>
-                                                {getCategoryLabel(item.category).text}
+                                            
+                                            {/* Tags Overlay */}
+                                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                                                <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md flex items-center gap-1">
+                                                    <div className="w-3 h-3">{getCategoryLabel(item.category).icon}</div>
+                                                    {item.subCategory || getCategoryLabel(item.category).text}
+                                                </div>
+                                                {item.brand && (
+                                                    <div className="bg-white/90 text-gray-700 text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm">
+                                                        {item.brand}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id, 'cloth'); }} className="absolute top-2 right-2 bg-white text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-50 transition-all"><div className="w-4 h-4"><Icons.Trash /></div></button>
+                                            
+                                            {/* Name Label */}
+                                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-6">
+                                                <p className="text-white text-xs font-medium truncate">{item.name}</p>
+                                            </div>
+
+                                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={(e) => { e.stopPropagation(); handleEditItem(item); }} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id, 'cloth'); }} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button>
+                                            </div>
                                         </div>
                                     ))}
-                                    {clothes.filter(item => viewCategory === 'all' || item.category === viewCategory).length === 0 && (
-                                        <div className="col-span-full py-12 flex flex-col items-center text-gray-400">
-                                            <div className="w-12 h-12 mb-2 opacity-20"><Icons.Shirt /></div>
-                                            <p className="text-sm">這個分類還沒有衣服，快上傳一件吧！</p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
 
-                        {activeTab === 'user' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">模特兒管理</h2><button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800"><div className="w-4 h-4"><Icons.Camera /></div> 上傳照片</button><input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleUpload(e, 'user')} /></div><div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-10">{users.map((item) => (<div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"><img src={item.src} onError={handleImageError} className="w-full h-full object-cover" /><button onClick={() => handleDelete(item.id, 'user')} className="absolute top-2 right-2 bg-white text-red-500 p-2 rounded-full opacity-0 group-hover:opacity-100"><div className="w-4 h-4"><Icons.Trash /></div></button></div>))}</div></div>)}
-                        {activeTab === 'studio' && (<div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10"><div className="flex flex-col lg:flex-row gap-8 justify-center items-start"><div className="w-full lg:w-1/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3><div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div></div><div className="w-full lg:w-2/3"><h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇服飾</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{['upper', 'lower', 'accessory'].map(slot => (<div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-40 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>{selectedItems[slot] ? (<div className="relative w-full h-full p-2"><img src={selectedItems[slot].src} className="w-full h-full object-contain" /><button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button></div>) : (<><div className="w-8 h-8 text-gray-300 mb-2">{getCategoryLabel(slot).icon}</div><span className="text-sm text-gray-400">選擇{getCategoryLabel(slot).text}</span></>)}</div>))}</div></div></div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-3"><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}</div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
-                        {activeTab === 'lookbook' && (<div className="animate-fade-in">{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"><div className="relative aspect-[3/4] bg-gray-50"><img src={look.src} className="w-full h-full object-cover" /><button onClick={() => handleDownload(look.src, `look-${look.id}.jpg`)} className="absolute bottom-2 right-2 bg-white/90 p-2 rounded-full shadow-sm hover:bg-white text-gray-700"><div className="w-4 h-4"><Icons.Download /></div></button></div><div className="p-4 flex-1 flex flex-col justify-between"><div><h4 className="font-bold text-sm text-gray-600 mb-3">搭配單品</h4><div className="flex gap-2">{look.items?.upper && <img src={look.items.upper.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="上身" />}{look.items?.lower && <img src={look.items.lower.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="下身" />}{look.items?.accessory && <img src={look.items.accessory.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="配件" />}</div></div><div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={() => handleDelete(look.id, 'look')} className="text-red-400 hover:text-red-600 text-xs flex items-center gap-1"><div className="w-3 h-3"><Icons.Trash /></div> 刪除</button></div></div></div>))}</div>}</div>)}
-                        {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{getCategoryLabel(currentSelectionSlot).text}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">{clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2"><p>沒有衣服</p><button onClick={() => { setIsSelectorOpen(false); setActiveTab('wardrobe'); setUploadCategory(currentSelectionSlot); }} className="text-purple-600 font-bold">去上傳</button></div> : <div className="grid grid-cols-3 gap-3">{clothes.filter(c => c.category === currentSelectionSlot).map(item => (<div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 overflow-hidden shadow-sm"><img src={item.src} className="w-full h-full object-cover" /></div>))}</div>}</div></div></div>)}
+                        {activeTab === 'user' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">模特兒管理</h2><button onClick={() => fileInputRefUser.current.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-sm hover:bg-slate-800"><div className="w-4 h-4"><Icons.Camera /></div> 上傳照片</button><input type="file" ref={fileInputRefUser} className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'user')} /></div><div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-10">{users.map((item) => (<div key={item.id} className="group relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"><img src={item.src} onError={handleImageError} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white text-xs font-bold">{item.name || "我"}</div><div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleRenameModel(item.id, item.name)} className="bg-white text-slate-600 p-1.5 rounded-full hover:bg-slate-50 shadow-sm"><div className="w-3 h-3"><Icons.Edit /></div></button><button onClick={() => handleDelete(item.id, 'user')} className="bg-white text-red-500 p-1.5 rounded-full hover:bg-red-50 shadow-sm"><div className="w-3 h-3"><Icons.Trash /></div></button></div></div>))}</div></div>)}
+                        
+                        {activeTab === 'studio' && (
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade-in mb-10">
+                                <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
+                                    <div className="w-full lg:w-1/3">
+                                        <h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">1. 選擇模特兒</h3>
+                                        <div className="grid grid-cols-3 gap-2">{users.map(u => (<div key={u.id} onClick={() => setSelectedUser(u)} className={`aspect-[3/4] rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedUser?.id === u.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-transparent opacity-70 hover:opacity-100'}`}><img src={u.src} className="w-full h-full object-cover" /></div>))}</div>
+                                    </div>
+                                    <div className="w-full lg:w-2/3">
+                                        <h3 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">2. 選擇搭配</h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {['hairstyle', 'upper', 'lower', 'accessory'].map(slot => (
+                                                <div key={slot} onClick={() => { setCurrentSelectionSlot(slot); setIsSelectorOpen(true); }} className={`h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${selectedItems[slot] ? 'border-purple-500 bg-purple-50' : 'border-gray-300'}`}>
+                                                    {selectedItems[slot] ? (
+                                                        <div className="relative w-full h-full p-2">
+                                                            <img src={selectedItems[slot].src} className="w-full h-full object-contain" />
+                                                            <button onClick={(e) => { e.stopPropagation(); setSelectedItems(p => ({...p, [slot]: null})); }} className="absolute top-1 right-1 bg-white text-gray-500 rounded-full p-1 shadow-md hover:text-red-500"><div className="w-3 h-3"><Icons.X /></div></button>
+                                                            <span className="absolute bottom-1 left-0 right-0 text-[10px] text-center text-purple-700 font-bold bg-white/80">{selectedItems[slot].name || getCategoryLabel(slot).text}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="w-6 h-6 text-gray-300 mb-1">{getCategoryLabel(slot).icon}</div>
+                                                            <span className="text-xs text-gray-400">{getCategoryLabel(slot).text}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3>
+                                    
+                                    <div className="flex flex-col gap-4">
+                                        {/* Focus Mode Switch */}
+                                        <div className="flex bg-white p-1 rounded-lg border border-gray-200">
+                                            <button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                                <div className="w-4 h-4"><Icons.Body /></div> 全身服飾
+                                            </button>
+                                            <button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                                <div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫
+                                            </button>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            {[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (
+                                                <button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>
+                                            ))}
+                                        </div>
+                                        
+                                        {genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}
+                                        <p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果。'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>
+                                {(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}
+                            </div>
+                        )}
+                        
+                        {activeTab === 'lookbook' && (<div className="animate-fade-in">{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"><div className="relative aspect-[3/4] bg-gray-50"><img src={look.src} className="w-full h-full object-cover" /><button onClick={() => handleDownload(look.src, `look-${look.id}.jpg`)} className="absolute bottom-2 right-2 bg-white/90 p-2 rounded-full shadow-sm hover:bg-white text-gray-700"><div className="w-4 h-4"><Icons.Download /></div></button></div><div className="p-4 flex-1 flex flex-col justify-between"><div><h4 className="font-bold text-sm text-gray-600 mb-3">搭配單品</h4><div className="flex gap-2">{look.items?.hairstyle && <img src={look.items.hairstyle.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="髮型" />}{look.items?.upper && <img src={look.items.upper.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="上身" />}{look.items?.lower && <img src={look.items.lower.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="下身" />}{look.items?.accessory && <img src={look.items.accessory.src} className="w-10 h-10 rounded-md border border-gray-200 object-cover bg-white" title="配件" />}</div></div><div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={() => handleDelete(look.id, 'look')} className="text-red-400 hover:text-red-600 text-xs flex items-center gap-1"><div className="w-3 h-3"><Icons.Trash /></div> 刪除</button></div></div></div>))}</div>}</div>)}
+                        
+                        {/* Selector Modal */}
+                        {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{getCategoryLabel(currentSelectionSlot).text}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">{clothes.filter(c => c.category === currentSelectionSlot).length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2"><p>沒有這個分類的物品</p><button onClick={() => { setIsSelectorOpen(false); setIsUploadModalOpen(true); }} className="text-purple-600 font-bold">去新增</button></div> : <div className="grid grid-cols-3 gap-3">{clothes.filter(c => c.category === currentSelectionSlot).map(item => (<div key={item.id} onClick={() => { setSelectedItems(p => ({...p, [currentSelectionSlot]: item})); setIsSelectorOpen(false); }} className="cursor-pointer aspect-square bg-white rounded-xl border-2 border-transparent hover:border-purple-500 overflow-hidden shadow-sm relative"><img src={item.src} className="w-full h-full object-cover" /><div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 truncate">{item.name}</div></div>))}</div>}</div></div></div>)}
+                        
+                        {/* Modals */}
                         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} />}
+                        {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} />}
                     </main>
                 </div>
             );
@@ -531,5 +828,3 @@
     </script>
 </body>
 </html>
-
-
