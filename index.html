@@ -129,18 +129,18 @@
             // --- 核心修改：恢復指定的 Prompt 寫法，但改為支援 activeSlots 迴圈 ---
             
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
-            // [新增] 這裡插入強力臉部權重，解決變回外國人問題
-            // promptText += "(嚴格保留臉部特徵:1.5), (Same Face:1.5). "; 
-
+        
+            // 保留您的 imageParts 處理邏輯
             const imageParts = [];
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
 
-            // 使用 activeSlots 迴圈來支援多件單品，但保持您要求的句型結構
+            // 1. 保留新版的動態迴圈 (這是好的功能)
             activeSlots.forEach(slot => {
                 const item = selectedItems[slot.id];
                 if (item) {
+                    // ... 標籤判斷邏輯保持不變 ...
                     let label = "衣物";
                     if (slot.category === 'hairstyle') label = "髮型參考";
                     else if (slot.category === 'upper') label = "上身衣物";
@@ -148,27 +148,36 @@
                     else if (slot.category === 'accessory') label = "時尚配件";
                     else if (slot.category === 'shoes') label = "鞋子";
                     else if (slot.category === 'outerwear') label = "外套";
-                    
+
                     promptText += ` 第 ${clothIndex} 張圖片是'${label}'。`;
                     imageParts.push({ inlineData: { mimeType: "image/jpeg", data: item.src.split(',')[1] } });
                     clothIndex++;
                 }
             });
             
+            // 2. [關鍵修改] 這裡改回原本的「強硬簡潔」風格，拿掉過多的形容詞
+            // 我們只保留必要的「換背景」跟「全身」指令，並把「保留臉部」做得更隱晦但強硬。
+
             promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。";
+
+            // 用原本的 [重要指令] 格式，這對 Gemini 來說權重很高
+            promptText += " [重要指令]：";
+            promptText += " 1. 必須嚴格保留第一張圖片(使用者)的臉部特徵與身形，不要改變種族或長相。"; // 加強語氣但不多做解釋
             
+            // 處理特寫與全身的邏輯 (簡化版)
             if (focusMode === 'face') {
-                promptText += " [重點指令 - 特寫模式]：請生成一張【半身或頭像特寫】，重點在於展示【使用者臉部特徵】與【新髮型】(如果有的話)。忽略下半身穿著。";
+                promptText += " 2. 請生成半身特寫，重點在於展示臉部與髮型。";
             } else {
-                promptText += " [重點指令 - 全身模式]：請生成一張【全身或七分身】照片，完整展示所有選定的衣物搭配，包含鞋子。";
+                promptText += " 2. 模特兒請呈現'正面全身'，完整展示穿搭。";
             }
 
+            // 處理背景與風格 (大幅簡化，去除微笑、牙齒、光影等干擾詞)
             if (mode === 'studio') {
-                promptText += " 1. 最優先保留使用者臉部特徵。 2. 背景：純白色攝影棚背景。 3. 光影：專業棚拍打光。 4. 姿勢：正面展示，面帶微笑但不露齒。";
+                promptText += " 3. 背景替換為'純白色攝影棚背景'。";
             } else if (mode === 'minimal') {
-                promptText += " 1. 最優先保留臉部特徵。 2. 嚴格保留原圖背景與構圖。 3. 不要改變模特兒姿勢。";
+                promptText += " 3. 保持原圖背景與構圖。";
             } else if (mode === 'custom') {
-                promptText += ` 1. 自訂場景：${customPrompt || "自然風格"}。 2. 最優先保留使用者臉部特徵。`;
+                promptText += ` 3. 背景場景：${customPrompt}。`;
             }
 
             // ==========================================
