@@ -8,9 +8,9 @@
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     
     <!-- 網頁圖示 -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👕</text></svg>">
     
-    <title>Virtual Wardrobe</title>
+    <title>虛擬試穿衣櫥</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -112,7 +112,7 @@
             if (selectedItems.lower) { promptText += ` 第 ${clothIndex} 張圖片是'下身衣物'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.lower.src.split(',')[1] } }); clothIndex++; }
             if (selectedItems.accessory) { promptText += ` 第 ${clothIndex} 張圖片是'時尚配件'。`; imageParts.push({ inlineData: { mimeType: "image/jpeg", data: selectedItems.accessory.src.split(',')[1] } }); clothIndex++; }
             
-            promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。 [重要指令]：1. 請將背景替換為'純白色攝影棚背景'。 2. 模特兒請呈現'正面全身'。";
+            promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。 [重要指令]：1. 請將背景替換為'純白色攝影棚背景'。 2. 模特兒請呈現'正面全身'並盡量保持'原始圖片臉部細節'與'微笑'。";
 
             try {
                 const response = await fetch(
@@ -127,12 +127,29 @@
                     }
                 );
                 const data = await response.json();
-                if (data.error) throw new Error(data.error.message || "API 權限錯誤");
-                if (data.candidates?.[0]?.content?.parts) {
-                    const imagePart = data.candidates[0].content.parts.find(p => p.inlineData);
+                
+                // 1. 檢查 API 錯誤
+                if (data.error) {
+                    throw new Error(`API Error: ${data.error.message}`);
+                }
+
+                const candidate = data.candidates?.[0];
+
+                // 2. 檢查安全性攔截 (重點)
+                if (candidate?.finishReason === 'SAFETY') {
+                    throw new Error("⚠️ 圖片被安全系統攔截：這通常是因為 AI 判斷圖片含有過多皮膚暴露或敏感姿勢。請嘗試更換較為包覆的衣物或正常站姿照片。");
+                }
+
+                // 3. 檢查是否有圖片
+                if (candidate?.content?.parts) {
+                    const imagePart = candidate.content.parts.find(p => p.inlineData);
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
                 }
-                throw new Error("生成回應中沒有圖片");
+                
+                // 4. 其他原因
+                console.log("Gemini API Response:", data);
+                throw new Error("生成失敗：模型拒絕產生圖片 (可能非圖像請求或無法處理)");
+
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 throw error;
@@ -267,7 +284,7 @@
                         </div>
                         <h2 className="text-2xl font-bold text-center mb-2">Virtual Wardrobe</h2>
                         <p className="text-slate-400 text-center mb-8 flex justify-center items-center gap-2">
-                            {isFirebaseReady ? <span className="text-green-400 text-xs">● 雲端已連線</span> : <span className="text-orange-400 text-xs">● 等待連線 / 本地模式</span>}
+                            {isFirebaseReady ? <span className="text-green-400 text-xs">● 雲端已連線</span> : <span className="text-orange-400 text-xs">● 等待連線...</span>}
                         </p>
                         
                         <form onSubmit={handleSubmit} className="space-y-4">
@@ -382,10 +399,11 @@
                 }
 
                 const itemsUsed = {
-                    user: { src: selectedUser.src }, // 注意：如果這裡原圖也很大，仍有風險
-                    upper: selectedItems.upper ? { src: selectedItems.upper.src } : null,
-                    lower: selectedItems.lower ? { src: selectedItems.lower.src } : null,
-                    accessory: selectedItems.accessory ? { src: selectedItems.accessory.src } : null,
+                    // 只存圖片連結或縮圖，避免物件過大
+                    user: { src: selectedUser.src ? await compressImage(selectedUser.src, 200, 0.5) : "" },
+                    upper: selectedItems.upper ? { src: await compressImage(selectedItems.upper.src, 200, 0.5) } : null,
+                    lower: selectedItems.lower ? { src: await compressImage(selectedItems.lower.src, 200, 0.5) } : null,
+                    accessory: selectedItems.accessory ? { src: await compressImage(selectedItems.accessory.src, 200, 0.5) } : null,
                 };
 
                 const lookData = { 
