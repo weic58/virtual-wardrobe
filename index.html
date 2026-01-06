@@ -10,7 +10,7 @@
     <!-- 網頁圖示 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧥</text></svg>">
     
-    <title>虛擬試穿衣櫥</title>
+    <title>Virtual Wardrobe</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -57,11 +57,11 @@
         };
 
         const CLOTH_CATEGORIES = {
-            upper: { label: '上身', types: ['T恤', '襯衫', '背心', '毛衣', '其他'] },
+            upper: { label: '上身', types: ['長袖', '短袖', 'T恤', '襯衫', '背心', '毛衣', '其他'] },
             outerwear: { label: '外套', types: ['夾克', '大衣', '西裝外套', '針織衫', '風衣', '其他'] },
-            lower: { label: '下身', types: ['牛仔褲', '休閒褲', '短褲', '裙子', '其他'] },
+            lower: { label: '下身', types: ['長褲', '短褲', '牛仔褲', '休閒褲', '裙子', '其他'] },
             shoes: { label: '鞋子', types: ['運動鞋', '皮鞋', '涼鞋', '靴子', '高跟鞋', '其他'] },
-            accessory: { label: '配件', types: ['項鍊', '手飾', '皮帶', '領帶', '帽子', '包包', '其他'] },
+            accessory: { label: '配件', types: ['項鍊', '手鍊', '皮帶', '領帶', '帽子', '包包', '其他'] },
             hairstyle: { label: '髮型', types: ['短髮', '長髮', '捲髮', '馬尾', '其他'] }
         };
 
@@ -129,7 +129,7 @@
             let promptText = "這是一項虛擬試穿任務。第一張圖片是'使用者' (模特兒)。";
             
             const imageParts = [];
-            // 第 1 次放入使用者照片 (作為身體骨架與姿勢參考)
+            // 第一次放入使用者 (身體參考)
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
             
             let clothIndex = 2;
@@ -146,29 +146,45 @@
                 }
             });
 
-            // =================================================================
-            // [新增策略]：臉部重注 (Face Reinforcement)
-            // 在所有衣服都放完後，再放一次使用者照片，強迫 AI 回想長相
-            // =================================================================
-            promptText += ` 第 ${clothIndex} 張圖片是'臉部五官特寫參考' (Face Identity Reference)。`;
+            // 臉部重注策略 (保持這個以維持臉部穩定)
+            promptText += ` 第 ${clothIndex} 張圖片是'臉部五官特寫參考'。`;
             imageParts.push({ inlineData: { mimeType: "image/jpeg", data: userImage.split(',')[1] } });
-            // =================================================================
             
             promptText += " 請生成一張高品質、寫實的照片，顯示'使用者'穿著上述選定的衣物/配件。";
             
-            promptText += " [重要指令]：";
-            // 這裡的指令要配合最後一張圖
-            promptText += " 1. 【極度重要】：臉部五官必須與第 1 張及最後一張圖片完全一致 (Identity Preservation)，不可改變長相。";
-            promptText += " 2. 請將背景替換為'純白色攝影棚背景'。"; 
-            promptText += " 3. 模特兒請呈現'正面全身'。";
-            promptText += " 4. 表情：請讓模特兒'面帶柔和微笑但不露齒'。";
-
-            if (focusMode === 'face') {
-                promptText += " (注意：請改為生成'半身特寫'，重點在臉部)";
-            }
+            // [核心指令區] - 不論什麼模式都要遵守的物理規則
+            promptText += " [絕對規則]：";
+            promptText += " 1. 【臉部鎖定】：臉部五官必須與第 1 張及最後一張圖片完全一致，不可改變長相。";
             
-            if (mode === 'custom' && customPrompt) {
-                 promptText += ` (背景場景改為：${customPrompt})`;
+            if (focusMode === 'face') {
+                promptText += " 2. 【特寫模式】：請生成半身或頭像特寫，重點在展示臉部與上半身搭配。";
+            } else {
+                promptText += " 2. 【全身模式】：請盡量展示全身或七分身穿搭。";
+            }
+
+            // [風格/場景分支] - 根據您的要求徹底分流
+            if (mode === 'custom') {
+                // === 自訂模式 ===
+                // 完全覆蓋：不加任何預設背景、表情、姿勢指令，完全聽從 customPrompt
+                if (customPrompt) {
+                    promptText += ` 3. 【自訂指令】：${customPrompt}`;
+                } else {
+                    promptText += ` 3. 背景與風格：請保持自然寫實。`; // 若使用者選自訂卻沒打字，給個最基本的兜底
+                }
+
+            } else if (mode === 'minimal') {
+                // === 最小變化模式 ===
+                // 重點是「不動背景」
+                promptText += " 3. 【最小變化】：請嚴格保留原圖(第1張)的背景環境、光影氛圍與身體姿勢，僅替換衣物。";
+                promptText += " 4. 表情：保持原圖表情。";
+
+            } else {
+                // === 棚拍模式 (Studio) - 預設 ===
+                // 重點是「白背景」+「好看的模特圖」
+                promptText += " 3. 【棚拍風格】：背景必須替換為'純白色攝影棚背景' (Pure White Studio Background)。";
+                promptText += " 4. 光影：使用專業攝影棚打光 (Studio Lighting)。";
+                promptText += " 5. 姿勢：模特兒請呈現'正面全身'。";
+                promptText += " 6. 表情：面帶柔和微笑但不露齒。";
             }
 
             if (onDebugPrompt) {
