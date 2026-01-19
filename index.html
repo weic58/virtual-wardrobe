@@ -450,25 +450,25 @@
             );
         };
 
-        // --- Look Details Modal (日誌詳情視窗) ---
+        // --- 日誌詳情視窗 (包含縮放功能與修復外套顯示) ---
         const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename }) => {
             if (!isOpen || !look) return null;
 
             const [isEditingName, setIsEditingName] = useState(false);
             const [tempName, setTempName] = useState(lookName);
+            
+            // [新增 1] 控制圖片是否正在放大的狀態
+            const [isZooming, setIsZooming] = useState(false);
 
             const handleNameSave = () => {
                 onRename(look.id, tempName);
                 setIsEditingName(false);
             };
             
-            // 核心修改：這個小元件現在支援顯示「單個」或「多個」物品
+            // 內部小元件：顯示單品卡片 (支援多件顯示)
             const ItemCard = ({ item, label, icon }) => {
                 if (!item) return null;
-                // 如果是陣列(多選)就用陣列，如果是單個物件就包成陣列，確保統一處理
                 const itemsList = Array.isArray(item) ? item : [item];
-                
-                // 如果陣列是空的 (例如選了分類但沒選東西)，則不顯示
                 if (itemsList.length === 0) return null;
 
                 return (
@@ -485,8 +485,6 @@
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-gray-800 truncate">{itm.name || `未命名單品 ${idx+1}`}</p>
-                                        {/* 顯示這是第幾層，如果有選多件的話 */}
-                                        {itemsList.length > 1 && <p className="text-[10px] text-gray-400">層次 #{idx + 1}</p>}
                                     </div>
                                 </div>
                             ))}
@@ -495,72 +493,116 @@
                 );
             };
 
+            // [修改重點] 這裡的 return 結構改變了
             return (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-                    <div className="bg-white w-full max-w-4xl h-[100dvh] md:h-[80vh] rounded-none md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
-                        {/* 左側：大圖預覽區 */}
-                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-[40%] md:h-full bg-contain bg-center bg-no-repeat">
-                            <img src={look.src} className="w-full h-full object-contain" />
-                            <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden">
-                                <div className="w-5 h-5"><Icons.X /></div>
-                            </button>
-                        </div>
+                <>
+                    {/* [新增 2] 如果 isZooming 為 true，就顯示全螢幕縮放視窗 */}
+                    {isZooming && (
+                        <ImageZoomModal 
+                            src={look.src} 
+                            onClose={() => setIsZooming(false)} 
+                        />
+                    )}
 
-                        {/* 右側：詳情與下載區 */}
-                        <div className="w-full md:w-1/2 flex flex-col h-[60%] md:h-full bg-white">
-                            <div className="p-4 border-b flex justify-between items-center">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        {isEditingName ? (
-                                            <div className="flex items-center gap-1">
-                                                <input type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} className="border rounded px-2 py-1 text-sm font-bold w-32" />
-                                                <button onClick={handleNameSave} className="text-green-600 hover:text-green-700 text-xs">OK</button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-bold text-lg text-gray-800">{lookName}</h3>
-                                                <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button>
-                                            </div>
-                                        )}
+                    {/* 原本的詳細視窗內容 */}
+                    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+                        <div className="bg-white w-full max-w-4xl h-[100dvh] md:h-[80vh] rounded-none md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+                            
+                            {/* 左側圖片區 */}
+                            <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-[40%] md:h-full bg-contain bg-center bg-no-repeat">
+                                {/* [修改 3] 加上 cursor-zoom-in 和 onClick 事件來觸發放大 */}
+                                <img 
+                                    src={look.src} 
+                                    className="w-full h-full object-contain cursor-zoom-in hover:opacity-95 transition-opacity" 
+                                    onClick={() => setIsZooming(true)}
+                                />
+                                <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden">
+                                    <div className="w-5 h-5"><Icons.X /></div>
+                                </button>
+                            </div>
+
+                            {/* 右側資訊區 */}
+                            <div className="w-full md:w-1/2 flex flex-col h-[60%] md:h-full bg-white">
+                                <div className="p-4 border-b flex justify-between items-center">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            {isEditingName ? (
+                                                <div className="flex items-center gap-1">
+                                                    <input type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} className="border rounded px-2 py-1 text-sm font-bold w-32" />
+                                                    <button onClick={handleNameSave} className="text-green-600 hover:text-green-700 text-xs">OK</button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-lg text-gray-800">{lookName}</h3>
+                                                    <button onClick={() => setIsEditingName(true)} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-gray-500">建立於: {look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleString() : '未知時間'}</p>
                                     </div>
-                                    <p className="text-xs text-gray-500">建立於: {look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleString() : '未知時間'}</p>
-                                </div>
-                                <button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
-                            </div>
-
-                            {/* 滾動區域：顯示所有單品 */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 md:pb-4">
-                                <div className="space-y-2">
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">💇 髮型參考</h5>
-                                    {look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無指定髮型</div>}
+                                    <button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
                                 </div>
 
-                                <div className="space-y-2 pt-2 border-t border-dashed border-gray-100">
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">👕 穿搭清單</h5>
-                                    
-                                    {/* 這裡依序顯示：上身(包含多件)、外套、下身、鞋子、配件 */}
-                                    {look.items?.upper && <ItemCard item={look.items.upper} label="上身 / 內搭" icon={<Icons.Shirt />} />}
-                                    
-                                    {/* [修正] 確保外套會顯示 */}
-                                    {look.items?.outerwear && <ItemCard item={look.items.outerwear} label="外套" icon={<Icons.Jacket />} />}
-                                    
-                                    {look.items?.lower && <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} />}
-                                    {look.items?.shoes && <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} />}
-                                    {look.items?.accessory && <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} />}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 md:pb-4">
+                                    <div className="space-y-2">
+                                        <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">💇 髮型</h5>
+                                        {look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無髮型紀錄</div>}
+                                    </div>
+
+                                    <div className="space-y-2 pt-2 border-t border-dashed border-gray-100">
+                                        <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">👕 服飾</h5>
+                                        {/* [修改 4] 確保這裡包含 outerwear (外套) */}
+                                        {look.items?.upper && <ItemCard item={look.items.upper} label="上身" icon={<Icons.Shirt />} />}
+                                        {look.items?.outerwear && <ItemCard item={look.items.outerwear} label="外套" icon={<Icons.Jacket />} />}
+                                        {look.items?.lower && <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} />}
+                                        {look.items?.shoes && <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} />}
+                                        {look.items?.accessory && <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} />}
+                                    </div>
+                                </div>
+
+                                <div className="p-4 border-t bg-gray-50 absolute bottom-0 w-full md:relative">
+                                    <a href={look.src} download={`look-${look.id}.jpg`} className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors">
+                                        <div className="w-4 h-4"><Icons.Download /></div> 下載穿搭照
+                                    </a>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </>
+            );
+        };
+        
+        // --- 新增：圖片縮放檢視器 ---
+        const ImageZoomModal = ({ src, onClose }) => {
+            if (!src) return null;
+            const [scale, setScale] = useState(1);
+            
+            // 簡單的點擊放大/縮小邏輯
+            const toggleZoom = (e) => {
+                e.stopPropagation();
+                setScale(prev => prev === 1 ? 2.5 : 1);
+            };
 
-                            <div className="p-4 border-t bg-gray-50 absolute bottom-0 w-full md:relative">
-                                <a href={look.src} download={`look-${look.id}.jpg`} className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors">
-                                    <div className="w-4 h-4"><Icons.Download /></div> 下載穿搭照
-                                </a>
-                            </div>
+            return (
+                <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center overflow-hidden transition-opacity" onClick={onClose}>
+                    <div className="relative w-full h-full flex items-center justify-center p-2">
+                        <img 
+                            src={src} 
+                            className="transition-transform duration-300 ease-out cursor-zoom-in object-contain max-h-full max-w-full"
+                            style={{ transform: `scale(${scale})` }}
+                            onClick={toggleZoom}
+                        />
+                        <button onClick={onClose} className="absolute top-4 right-4 bg-white/10 text-white p-3 rounded-full backdrop-blur-md hover:bg-white/20 z-50">
+                            <div className="w-6 h-6"><Icons.X /></div>
+                        </button>
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm pointer-events-none">
+                            點擊圖片可放大 / 縮小
                         </div>
                     </div>
                 </div>
             );
         };
-
+        
         const AuthScreen = ({ isFirebaseReady }) => {
             const [isRegister, setIsRegister] = useState(false);
             const [email, setEmail] = useState('');
@@ -644,7 +686,9 @@
             const [user, setAuthUser] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             const [isFirebaseReady, setIsFirebaseReady] = useState(false);
-            const [globalApiKey, setGlobalApiKey] = useState(''); 
+            const [globalApiKey, setGlobalApiKey] = useState('');
+            // [新增] 用於控制全螢幕縮放圖片的 State
+            const [zoomImageSrc, setZoomImageSrc] = useState(null);
             
             // --- 核心修改：將 Slots 轉為 State 以支援動態新增 ---
             const [tryOnSlots, setTryOnSlots] = useState([
@@ -1101,22 +1145,55 @@
                 </div>
             );
             
-            const LookListViewItem = ({ look }) => {
+            // --- 修正版 LookListViewItem ---
+            const LookListViewItem = ({ look, onDelete, onRename, onSelect }) => {
                  const hairstyle = getLatestItemInfo(look.items?.hairstyle, 'cloth');
-                 // 動態取得所有穿搭項目
-                 const clothingItems = Object.keys(look.items || {})
-                     .filter(key => key !== 'user' && key !== 'hairstyle')
-                     .map(key => getLatestItemInfo(look.items[key], 'cloth'))
-                     .filter(Boolean);
-
+                 const clothingItems = [];
+                 ['upper', 'outerwear', 'lower', 'shoes', 'accessory'].forEach(cat => {
+                     const info = getLatestItemInfo(look.items?.[cat], 'cloth');
+                     if (Array.isArray(info)) clothingItems.push(...info);
+                     else if (info) clothingItems.push(info);
+                 });
+                 
                  return (
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row gap-4">
-                        <div className="relative w-full md:w-32 aspect-[3/4] md:aspect-square flex-shrink-0 cursor-pointer" onClick={() => setSelectedLook(look)}><img src={look.src} className="w-full h-full object-cover rounded-lg" onError={handleImageError} /></div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-between">
-                            <div className="flex justify-between items-start"><div><div className="flex items-center gap-2"><h3 className="font-bold text-lg text-gray-800">{look.name || '未命名穿搭'}</h3><button onClick={() => handleRenameLook(look.id, look.name)} className="text-gray-400 hover:text-purple-600"><div className="w-4 h-4"><Icons.Edit /></div></button></div><p className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</p></div><button onClick={() => handleDelete(look.id, 'look')} className="text-gray-400 hover:text-red-600"><div className="w-4 h-4"><Icons.Trash /></div></button></div>
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div><h5 className="text-xs font-bold text-gray-400 uppercase mb-1">💇 髮型</h5>{hairstyle ? (<div className="flex items-center gap-2"><img src={hairstyle.src} className="w-6 h-6 rounded-full object-cover border" /><span className="text-sm text-gray-700 truncate">{hairstyle.name}</span></div>) : <span className="text-xs text-gray-300">無</span>}</div>
-                                <div><h5 className="text-xs font-bold text-gray-400 uppercase mb-1">👕 服飾</h5>{clothingItems.length > 0 ? (<div className="flex flex-wrap gap-2">{clothingItems.map((item, idx) => (<div key={idx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100 max-w-full"><span className="text-xs text-gray-700 truncate max-w-[80px]">{item.name}</span></div>))}</div>) : <span className="text-xs text-gray-300">無</span>}</div>
+                    // [修改 2] className 改為 flex-row (手機版也橫向排列)，並固定圖片寬度
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex flex-row gap-3 h-32 md:h-auto overflow-hidden">
+                        {/* 圖片區域：固定寬度，確保手機版不會變上下堆疊 */}
+                        <div className="relative w-24 md:w-32 aspect-[3/4] md:aspect-square flex-shrink-0 cursor-pointer bg-gray-100 rounded-lg overflow-hidden" onClick={() => onSelect(look)}>
+                            <img src={look.src} className="w-full h-full object-cover" onError={handleImageError} />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                            <div className="flex justify-between items-start">
+                                <div className="min-w-0 flex-1 mr-2">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-base text-gray-800 truncate">{look.name || '未命名穿搭'}</h3>
+                                        {/* [修改 3] 編輯按鈕：加上 e.stopPropagation 避免觸發彈窗，並確保 onRename 存在 */}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); if(onRename) onRename(look.id, look.name); }} 
+                                            className="text-gray-400 hover:text-purple-600 p-1 flex-shrink-0"
+                                        >
+                                            <div className="w-4 h-4"><Icons.Edit /></div>
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-0.5">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</p>
+                                </div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); if(onDelete) onDelete(look.id, 'look'); }} 
+                                    className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0"
+                                >
+                                    <div className="w-4 h-4"><Icons.Trash /></div>
+                                </button>
+                            </div>
+
+                            {/* 簡化版內容展示：手機版只顯示一行圖示 */}
+                            <div className="mt-2 flex gap-1 overflow-hidden opacity-70">
+                                {clothingItems.slice(0, 4).map((item, idx) => (
+                                    <div key={idx} className="w-6 h-6 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                                        <img src={item.src} className="w-full h-full object-cover" />
+                                    </div>
+                                ))}
+                                {clothingItems.length > 4 && <div className="w-6 h-6 flex items-center justify-center text-[9px] text-gray-400 bg-gray-50">+{clothingItems.length - 4}</div>}
                             </div>
                         </div>
                     </div>
@@ -1224,9 +1301,9 @@
                                     ))}
                                 </div>
                             </div>
-                        </div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-4"><div className="flex bg-white p-1 rounded-lg border border-gray-200"><button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Body /></div> 全身服飾</button><button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫</button></div><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}<p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p></div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm" /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
+                        </div><div className="mt-8 bg-gray-50 p-4 rounded-xl border border-gray-100"><h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><div className="w-4 h-4"><Icons.Settings /></div> 生成設定</h3><div className="flex flex-col gap-4"><div className="flex bg-white p-1 rounded-lg border border-gray-200"><button onClick={() => setFocusMode('full')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'full' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Body /></div> 全身服飾</button><button onClick={() => setFocusMode('face')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${focusMode === 'face' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}><div className="w-4 h-4"><Icons.Eye /></div> 臉部髮型特寫</button></div><div className="flex gap-2">{[{ id: 'studio', label: '✨ 標準棚拍' }, { id: 'minimal', label: '🛡️ 最小變化' }, { id: 'custom', label: '✏️ 自訂指令' }].map(mode => (<button key={mode.id} onClick={() => setGenMode(mode.id)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${genMode === mode.id ? 'bg-white shadow-sm border border-purple-200 text-purple-700' : 'text-gray-500 hover:bg-gray-200'}`}>{mode.label}</button>))}</div>{genMode === 'custom' && (<textarea value={customPromptText} onChange={(e) => setCustomPromptText(e.target.value)} placeholder="輸入自訂場景..." className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-purple-200 outline-none resize-none h-20" />)}<p className="text-xs text-gray-400 pl-1">{focusMode === 'face' ? '💡 特寫模式：AI 將專注於融合髮型與臉部，忽略下半身穿搭。' : '💡 全身模式：展示整體穿搭效果，包含鞋子。'}</p></div></div><div className="mt-6 flex justify-center"><button disabled={!selectedUser || isGenerating} onClick={handleGenerateClick} className={`px-10 py-4 rounded-full font-bold text-lg shadow-xl w-full md:w-auto flex items-center justify-center gap-2 transition-transform active:scale-95 ${!selectedUser ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-purple-500/30'}`}>{isGenerating ? <><div className="w-5 h-5"><Icons.Loader /></div> 處理中...</> : <><div className="w-5 h-5"><Icons.Sparkles /></div> 生成試穿照</>}</button></div>{(generatedResult || errorMsg) && (<div className="mt-8 pt-8 border-t border-gray-100 flex flex-col items-center animate-slide-up">{errorMsg ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-center border border-red-100">{errorMsg}</div> : <div className="flex flex-col items-center gap-4 w-full"><h3 className="font-bold text-gray-700">生成結果</h3><img src={generatedResult} className="rounded-xl shadow-2xl w-full max-w-sm cursor-zoom-in" onClick={() => setZoomImageSrc(generatedResult)} /><div className="flex gap-3"><button onClick={() => handleDownload(generatedResult, `tryon-${Date.now()}.jpg`)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.Download /></div> 下載</button><button onClick={handleSaveLook} className="px-6 py-2 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded-full text-sm font-bold flex items-center gap-2 transition-colors"><div className="w-4 h-4"><Icons.SaveHeart /></div> 保存到日誌</button></div></div>}</div>)}</div>)}
                         
-                        {activeTab === 'lookbook' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">穿搭日誌</h2><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button></div>{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : (viewMode === 'grid' ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div> : <div className="flex flex-col gap-4 pb-10">{looks.map(look => <LookListViewItem key={look.id} look={look} />)}</div>)}</div>)}
+                        {activeTab === 'lookbook' && (<div className="animate-fade-in"><div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">穿搭日誌</h2><button onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="p-2 bg-white rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"><div className="w-5 h-5">{viewMode === 'grid' ? <Icons.List /> : <Icons.Grid />}</div></button></div>{looks.length === 0 ? <div className="text-center py-20 text-gray-400 bg-white rounded-2xl border-2 border-dashed border-gray-200"><div className="w-16 h-16 mx-auto mb-4 opacity-20"><Icons.BookHeart /></div><p>還沒有保存的穿搭</p></div> : (viewMode === 'grid' ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">{looks.map((look) => (<div key={look.id} onClick={() => setSelectedLook(look)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"><div className="relative aspect-[3/4] bg-gray-50 group"><img src={look.src} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center"><span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">查看詳情</span></div></div><div className="p-4 flex justify-between items-center bg-white border-t border-gray-50"><span className="text-xs text-gray-400">{look.createdAt ? new Date(look.createdAt.seconds * 1000).toLocaleDateString() : '剛剛'}</span><button onClick={(e) => { e.stopPropagation(); handleDelete(look.id, 'look'); }} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50"><div className="w-4 h-4"><Icons.Trash /></div></button></div></div>))}</div> : <div className="flex flex-col gap-3 pb-10">{looks.map(look => <LookListViewItem key={look.id} look={look} onDelete={handleDelete} onRename={handleRenameLook} onSelect={setSelectedLook} />)}</div>)}</div>)}
                         
                         {/* 修正選擇器 (Selector)：使用 tryOnSlots 尋找對應的分類 */}
                         {isSelectorOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectorOpen(false)}><div className="bg-white w-full md:w-[600px] h-[70vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden m-4" onClick={e => e.stopPropagation()}><div className="p-4 border-b flex justify-between items-center bg-gray-50"><h3 className="font-bold">選擇{tryOnSlots.find(s => s.id === currentSelectionSlot)?.label || '物品'}</h3><button onClick={() => setIsSelectorOpen(false)}><div className="w-6 h-6"><Icons.X /></div></button></div><div className="flex-1 overflow-y-auto p-4 bg-white">
@@ -1243,6 +1320,7 @@
                         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} user={user} isFirebaseReady={isFirebaseReady} apiKey={globalApiKey} onSaveApiKey={saveApiKeyToCloud} genStats={genStats} onRedeem={handleRedeem} userBrands={userBrands} onDeleteBrand={handleDeleteUserBrand} userTags={userTags} onDeleteTag={handleDeleteUserTag} />}
                         {isUploadModalOpen && <UploadEditorModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} file={uploadFile} isEdit={!!editingItem} initialData={editingItem} onConfirm={handleConfirmUpload} userTags={userTags} onAddTag={handleAddUserTag} onDeleteTag={handleDeleteUserTag} userBrands={userBrands} onAddBrand={handleAddUserBrand} defaultCategory={viewCategory} />}
                         {selectedLook && <LookDetailsModal isOpen={!!selectedLook} onClose={() => setSelectedLook(null)} look={selectedLook} lookName={selectedLook.name} onRename={handleRenameLook} onRestore={handleRestoreLook} />}
+                        {zoomImageSrc && <ImageZoomModal src={zoomImageSrc} onClose={() => setZoomImageSrc(null)} />}
                     </main>
                     <footer className="py-6 text-center text-gray-400 text-xs">Created by weic58 and Google Gemini, 2026</footer>
                 </div>
@@ -1254,9 +1332,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
