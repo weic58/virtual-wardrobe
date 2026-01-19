@@ -891,8 +891,11 @@
                 setIsUploadModalOpen(true);
             };
 
+            // --- 修改版：上傳/編輯單品 (包含自動同步日誌名稱功能) ---
             const handleConfirmUpload = async (metadata) => {
                 let base64Src = editingItem?.src;
+                
+                // 1. 處理圖片壓縮
                 if (uploadFile) {
                     const reader = new FileReader();
                     const promise = new Promise(resolve => { reader.onloadend = () => resolve(reader.result); });
@@ -900,21 +903,126 @@
                     const rawBase64 = await promise;
                     base64Src = await compressImage(rawBase64, 800, 0.6);
                 }
-                if (!base64Src) return;
+                
+                if (!base64Src && !editingItem) return; // 沒有圖片且不是編輯模式
+                if (!base64Src && editingItem) base64Src = editingItem.src; // 編輯模式但沒換圖
+
                 const collectionName = 'clothes';
+                
+                // ----------------------------------------------------
+                //  Firebase 雲端模式
+                // ----------------------------------------------------
                 if (isFirebaseReady && user) {
                     try {
                         const db = window.Firebase.getFirestore();
+                        
                         if (editingItem) {
-                            await window.Firebase.updateDoc(window.Firebase.doc(db, 'users', user.uid, collectionName, editingItem.id), { ...metadata });
+                            // A. 更新單品本身
+                            const clothRef = window.Firebase.doc(db, 'users', user.uid, collectionName, editingItem.id);
+                            await window.Firebase.updateDoc(clothRef, { ...metadata, src: base64Src });
+
+                            // B. [新增] 自動同步邏輯：找出所有用到這件單品的日誌並更新名稱
+                            // 注意：如果您日誌非常多(數千篇)，這可能會消耗較多讀寫次數，但個人使用完全沒問題
+                            const looksRef = window.Firebase.collection(db, 'users', user.uid, 'looks');
+                            const looksSnapshot = await window.Firebase.getDocs(looksRef);
+                            const batch = window.Firebase.writeBatch(db);
+                            let batchCount = 0;
+
+                            looksSnapshot.forEach((doc) => {
+                                const lookData = doc.data();
+                                let isLookChanged = false;
+                                const newItems = { ...lookData.items };
+
+                                // 遞迴檢查並更新名稱的輔助函式
+                                const checkAndUpdate = (entry) => {
+                                    if (!entry) return entry;
+                                    if (Array.isArray(entry)) {
+                                        return entry.map(item => {
+                                            if (item.id === editingItem.id && item.name !== metadata.name) {
+                                                isLookChanged = true;
+                                                return { ...item, name: metadata.name }; // 更新名稱
+                                            }
+                                            return item;
+                                        });
+                                    } else {
+                                        if (entry.id === editingItem.id && entry.name !== metadata.name) {
+                                            isLookChanged = true;
+                                            return { ...entry, name: metadata.name }; // 更新名稱
+                                        }
+                                        return entry;
+                                    }
+                                };
+
+                                // 掃描所有部位
+                                ['upper', 'outerwear', 'lower', 'shoes', 'accessory', 'hairstyle'].forEach(cat => {
+                                    if (newItems[cat]) newItems[cat] = checkAndUpdate(newItems[cat]);
+                                });
+
+                                // 如果有變動，加入批次更新
+                                if (isLookChanged) {
+                                    batch.update(doc.ref, { items: newItems });
+                                    batchCount++;
+                                }
+                            });
+
+                            if (batchCount > 0) {
+                                await batch.commit();
+                                console.log(`已自動同步更新了 ${batchCount} 篇日誌的單品名稱`);
+                            }
+
                         } else {
+                            // C. 新增單品 (不需要同步日誌)
                             await window.Firebase.addDoc(window.Firebase.collection(db, 'users', user.uid, collectionName), { ...metadata, src: base64Src, createdAt: window.Firebase.serverTimestamp() });
                         }
-                    } catch (err) { alert("操作失敗: " + err.message); }
-                } else {
+                    } catch (err) { 
+                        alert("操作失敗: " + err.message); 
+                        console.error(err);
+                    }
+                } 
+                // ----------------------------------------------------
+                //  本地模式 (訪客)
+                // ----------------------------------------------------
+                else {
                     const newItem = { id: editingItem ? editingItem.id : Date.now(), src: base64Src, ...metadata };
-                    if (editingItem) setClothes(clothes.map(c => c.id === newItem.id ? newItem : c));
-                    else setClothes([newItem, ...clothes]);
+                    
+                    if (editingItem) {
+                        // 更新衣櫥
+                        setClothes(clothes.map(c => c.id === newItem.id ? newItem : c));
+                        
+                        // [新增] 本地模式同步更新 Looks
+                        setLooks(prevLooks => prevLooks.map(look => {
+                            let isLookChanged = false;
+                            const newItems = { ...look.items };
+                            
+                            const checkAndUpdateLocal = (entry) => {
+                                if (!entry) return entry;
+                                if (Array.isArray(entry)) {
+                                    return entry.map(item => {
+                                        if (item.id === editingItem.id) {
+                                            isLookChanged = true;
+                                            return { ...item, name: metadata.name };
+                                        }
+                                        return item;
+                                    });
+                                } else {
+                                    if (entry.id === editingItem.id) {
+                                        isLookChanged = true;
+                                        return { ...entry, name: metadata.name };
+                                    }
+                                    return entry;
+                                }
+                            };
+
+                            ['upper', 'outerwear', 'lower', 'shoes', 'accessory', 'hairstyle'].forEach(cat => {
+                                if (newItems[cat]) newItems[cat] = checkAndUpdateLocal(newItems[cat]);
+                            });
+
+                            return isLookChanged ? { ...look, items: newItems } : look;
+                        }));
+
+                    } else {
+                        setClothes([newItem, ...clothes]);
+                    }
                 }
             };
 
