@@ -450,11 +450,10 @@
             );
         };
 
-        // --- Look Details Modal with Rename ---
-        const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename, onRestore }) => {
+        // --- Look Details Modal (日誌詳情視窗) ---
+        const LookDetailsModal = ({ isOpen, onClose, look, lookName, onRename }) => {
             if (!isOpen || !look) return null;
 
-            // Handle rename within modal
             const [isEditingName, setIsEditingName] = useState(false);
             const [tempName, setTempName] = useState(lookName);
 
@@ -463,30 +462,34 @@
                 setIsEditingName(false);
             };
             
-            // Rename individual items in look
-            const handleItemRename = (slot, currentName) => {
-                const newName = prompt("編輯單品名稱:", currentName);
-                if (newName && newName !== currentName && onRename) {
-                     if (look.items[slot]) {
-                         // This would require a specific handler passed from parent, or logic here.
-                     }
-                }
-            };
-            
+            // 核心修改：這個小元件現在支援顯示「單個」或「多個」物品
             const ItemCard = ({ item, label, icon }) => {
                 if (!item) return null;
+                // 如果是陣列(多選)就用陣列，如果是單個物件就包成陣列，確保統一處理
+                const itemsList = Array.isArray(item) ? item : [item];
+                
+                // 如果陣列是空的 (例如選了分類但沒選東西)，則不顯示
+                if (itemsList.length === 0) return null;
+
                 return (
-                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <div className="w-12 h-12 bg-white rounded-md overflow-hidden flex-shrink-0 border border-gray-200"><img src={item.src} className="w-full h-full object-cover" /></div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                                <p className="text-xs text-purple-600 font-bold flex items-center gap-1"><div className="w-3 h-3">{icon}</div> {label}</p>
-                                <button className="text-gray-300 hover:text-purple-600" onClick={() => {
-                                    // Basic prompt implementation for item rename
-                                }}><div className="w-3 h-3"><Icons.Edit /></div></button>
-                            </div>
-                            <p className="text-sm font-medium text-gray-800 truncate">{item.name || "未命名單品"}</p>
-                            {(item.brand || item.subCategory) && <p className="text-[10px] text-gray-500 truncate">{item.brand ? item.brand : ''} {item.brand && item.subCategory ? ' · ' : ''}{item.subCategory ? item.subCategory : ''}</p>}
+                    <div className="bg-gray-50 rounded-lg border border-gray-100 p-2">
+                        <p className="text-xs text-purple-600 font-bold flex items-center gap-1 mb-2">
+                            <div className="w-3 h-3">{icon}</div> {label} 
+                            {itemsList.length > 1 && <span className="text-[9px] bg-purple-100 px-1 rounded-full">x{itemsList.length}</span>}
+                        </p>
+                        <div className="space-y-2">
+                            {itemsList.map((itm, idx) => (
+                                <div key={idx} className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white rounded-md overflow-hidden flex-shrink-0 border border-gray-200">
+                                        <img src={itm.src} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-800 truncate">{itm.name || `未命名單品 ${idx+1}`}</p>
+                                        {/* 顯示這是第幾層，如果有選多件的話 */}
+                                        {itemsList.length > 1 && <p className="text-[10px] text-gray-400">層次 #{idx + 1}</p>}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 );
@@ -495,7 +498,15 @@
             return (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
                     <div className="bg-white w-full max-w-4xl h-[100dvh] md:h-[80vh] rounded-none md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
-                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-[40%] md:h-full bg-contain bg-center bg-no-repeat"><img src={look.src} className="w-full h-full object-contain" /><button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden"><div className="w-5 h-5"><Icons.X /></div></button></div>
+                        {/* 左側：大圖預覽區 */}
+                        <div className="w-full md:w-1/2 bg-gray-100 relative flex items-center justify-center h-[40%] md:h-full bg-contain bg-center bg-no-repeat">
+                            <img src={look.src} className="w-full h-full object-contain" />
+                            <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 md:hidden">
+                                <div className="w-5 h-5"><Icons.X /></div>
+                            </button>
+                        </div>
+
+                        {/* 右側：詳情與下載區 */}
                         <div className="w-full md:w-1/2 flex flex-col h-[60%] md:h-full bg-white">
                             <div className="p-4 border-b flex justify-between items-center">
                                 <div>
@@ -516,17 +527,32 @@
                                 </div>
                                 <button onClick={onClose} className="hidden md:block p-2 hover:bg-gray-100 rounded-full"><div className="w-5 h-5 text-gray-500"><Icons.X /></div></button>
                             </div>
+
+                            {/* 滾動區域：顯示所有單品 */}
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 md:pb-4">
-                                <div className="space-y-2"><h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">💇 髮型</h5>{look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無髮型紀錄</div>}</div>
-                                <div className="space-y-2 pt-2 border-t border-dashed border-gray-100"><h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">👕 服飾</h5>{look.items?.upper ? <ItemCard item={look.items.upper} label="上身" icon={<Icons.Shirt />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無上身紀錄</div>}{look.items?.lower ? <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無下身紀錄</div>}{look.items?.shoes ? <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無鞋子紀錄</div>}{look.items?.accessory ? <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無配件紀錄</div>}</div>
+                                <div className="space-y-2">
+                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">💇 髮型參考</h5>
+                                    {look.items?.hairstyle ? <ItemCard item={look.items.hairstyle} label="髮型" icon={<Icons.Scissors />} /> : <div className="p-2 text-center text-xs text-gray-300 border border-dashed rounded-lg">無指定髮型</div>}
+                                </div>
+
+                                <div className="space-y-2 pt-2 border-t border-dashed border-gray-100">
+                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">👕 穿搭清單</h5>
+                                    
+                                    {/* 這裡依序顯示：上身(包含多件)、外套、下身、鞋子、配件 */}
+                                    {look.items?.upper && <ItemCard item={look.items.upper} label="上身 / 內搭" icon={<Icons.Shirt />} />}
+                                    
+                                    {/* [修正] 確保外套會顯示 */}
+                                    {look.items?.outerwear && <ItemCard item={look.items.outerwear} label="外套" icon={<Icons.Jacket />} />}
+                                    
+                                    {look.items?.lower && <ItemCard item={look.items.lower} label="下身" icon={<Icons.Grid />} />}
+                                    {look.items?.shoes && <ItemCard item={look.items.shoes} label="鞋子" icon={<Icons.Shoes />} />}
+                                    {look.items?.accessory && <ItemCard item={look.items.accessory} label="配件" icon={<Icons.Watch />} />}
+                                </div>
                             </div>
-                            {/* [修改] 底部按鈕區：新增還原按鈕 */}
-                            <div className="p-4 border-t bg-gray-50 absolute bottom-0 w-full md:relative flex gap-2">
-                                <button onClick={() => onRestore(look)} className="flex-1 py-3 bg-white border border-gray-200 text-purple-700 rounded-xl text-sm font-bold hover:bg-purple-50 flex items-center justify-center gap-2 transition-colors shadow-sm">
-                                    <div className="w-4 h-4"><Icons.Sparkles /></div> 修改/試穿
-                                </button>
-                                <a href={look.src} download={`look-${look.id}.jpg`} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors shadow-sm">
-                                    <div className="w-4 h-4"><Icons.Download /></div> 下載
+
+                            <div className="p-4 border-t bg-gray-50 absolute bottom-0 w-full md:relative">
+                                <a href={look.src} download={`look-${look.id}.jpg`} className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors">
+                                    <div className="w-4 h-4"><Icons.Download /></div> 下載穿搭照
                                 </a>
                             </div>
                         </div>
@@ -1228,6 +1254,7 @@
     </script>
 </body>
 </html>
+
 
 
 
