@@ -222,7 +222,9 @@
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
                 }
                 
-                throw new Error("生成失敗：模型拒絕產生圖片");
+                const fallbackText = candidate?.content?.parts?.find(p => p.text)?.text || "未知的格式";
+                console.log("Google API 完整回傳資料：", data);
+                throw new Error("模型拒絕產生圖片，它實際的回答是：\n" + fallbackText);
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 throw error;
