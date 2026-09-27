@@ -249,22 +249,7 @@
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 throw error;
-            }
-                
-                const data = await response.json();
-                
-                if (data.error) throw new Error(`API Error: ${data.error.message}`);
-                const candidate = data.candidates?.[0];
-                if (candidate?.finishReason === 'SAFETY') throw new Error("⚠️ 圖片被安全系統攔截：請更換照片。");
-                if (candidate?.content?.parts) {
-                    const imagePart = candidate.content.parts.find(p => p.inlineData);
-                    if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
-                }
-                throw new Error("生成失敗：模型拒絕產生圖片");
-            } catch (error) {
-                console.error("Gemini API Error:", error);
-                throw error;
-            }
+            }            
         };
 
         // --- Settings Modal ---
