@@ -222,9 +222,10 @@
                     if (imagePart) return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
                 }
                 
-                const fallbackText = candidate?.content?.parts?.find(p => p.text)?.text || "未知的格式";
+                // 直接把整包回傳資料轉成文字，顯示在畫面上
+                const rawDataString = JSON.stringify(data, null, 2);
                 console.log("Google API 完整回傳資料：", data);
-                throw new Error("模型拒絕產生圖片，它實際的回答是：\n" + fallbackText);
+                throw new Error("模型回傳的原始資料：\n" + rawDataString);
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 throw error;
