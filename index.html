@@ -197,23 +197,59 @@
             }
 
             try {
+                // 1. 使用 Interactions API 的專屬 URL
                 const response = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`,
+                    `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`,
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: promptText }, ...imageParts] }],
-                            generationConfig: { responseModalities: ["IMAGE"], temperature: 0.4 },
-                            safetySettings: [
-                                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                            ]
+                            // 2. 指定官方最新的圖像模型 (Nano Banana 2)
+                            model: "gemini-3.1-flash-image",
+                            
+                            // 3. 傳入圖文混排的 input
+                            input: {
+                                parts: [
+                                    { text: promptText },
+                                    ...imageParts
+                                ]
+                            },
+                            
+                            // 4. 強制要求輸出圖片格式
+                            response_format: { type: "image" }
                         }),
                     }
                 );
+                
+                const data = await response.json();
+                
+                // 錯誤處理
+                if (data.error) throw new Error(`API Error: ${data.error.message}`);
+                
+                // 5. 解析 Interactions API 的新版回傳結構 (steps)
+                if (data.status === "completed" && data.steps) {
+                    // 找出模型最終輸出的那一步
+                    const outputStep = data.steps.find(step => step.type === "model_output");
+                    if (outputStep && outputStep.content) {
+                        // 在內容中尋找圖片區塊 (新版標籤為 type: "image")
+                        const imagePart = outputStep.content.find(p => p.type === "image" || p.image);
+                        
+                        if (imagePart && imagePart.image && imagePart.image.data) {
+                            const mimeType = imagePart.image.mime_type || "image/jpeg";
+                            return `data:${mimeType};base64,${imagePart.image.data}`;
+                        } 
+                        // 兼容某些版本的 inlineData 回傳格式
+                        else if (imagePart && imagePart.inlineData) {
+                            return `data:image/jpeg;base64,${imagePart.inlineData.data}`;
+                        }
+                    }
+                }
+                
+                throw new Error("生成失敗：無法從模型回傳中解析出圖片。");
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                throw error;
+            }
                 
                 const data = await response.json();
                 
